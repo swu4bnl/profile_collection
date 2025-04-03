@@ -598,6 +598,7 @@ else:
 # if True:
 if Pilatus800_on == True:
     pilatus800 = Pilatus800V33("XF:11BMB-ES{Det:PIL800K}:", name="pilatus800")
+    # pilatus800.wait_for_connection(timeout=10) #add by Siyu for solving keyerror acquire
     pilatus800.tiff.read_attrs = []
     pilatus800.stats3.total.kind = "hinted"
     pilatus800.stats4.total.kind = "hinted"
@@ -643,6 +644,7 @@ else:
 if Pilatus800_2_on == True:
     # TODO:
     pilatus8002 = Pilatus8002V33("XF:11BMB-ES{Det:PIL800K2}:", name="pilatus8002")  # change PV
+    # pilatus800k.wait_for_connection(timeout=10) #add by Siyu for solving keyerror acquire
     pilatus8002.tiff.read_attrs = []
     pilatus8002.stats3.total.kind = "hinted"
     pilatus8002.stats4.total.kind = "hinted"
@@ -686,6 +688,7 @@ else:
 # if False:
 if Pilatus2M_on == True:
     pilatus2M = Pilatus2MV33("XF:11BMB-ES{Det:PIL2M}:", name="pilatus2M")
+    # pilatus2M.wait_for_connection(timeout=10) #add by Siyu for solving keyerror acquire
     pilatus2M.tiff.read_attrs = []
 
     STATS_NAMES2M = ["stats1", "stats2", "stats3", "stats4"]
