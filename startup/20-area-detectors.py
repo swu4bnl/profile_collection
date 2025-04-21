@@ -54,7 +54,7 @@ elif beamline_stage == "default":
     Pilatus800_2_on = False
 
 # Pilatus800_on = False
-Pilatus800_2_on = True
+# Pilatus800_2_on = True
 # Pilatus800_2_on = False
 # Pilatus2M_on = False
 
@@ -493,17 +493,17 @@ if Camera_on==True:
 
     # time.sleep(1)
     # fs1 = StandardProsilicaV33('XF:11BMA-BI{FS:1-Cam:1}', name='fs1')
-    time.sleep(1)
+    # time.sleep(1)
     fs2 = StandardProsilicaV33("XF:11BMA-BI{FS:2-Cam:1}", name="fs2")
-    time.sleep(2)
+    # time.sleep(1)
     fs3 = StandardProsilicaV33("XF:11BMB-BI{FS:3-Cam:1}", name="fs3")
-    time.sleep(2)
+    # time.sleep(1)
     fs4 = StandardProsilicaV33("XF:11BMB-BI{FS:4-Cam:1}", name="fs4")
-    time.sleep(2)
     fs5 = StandardProsilicaV33("XF:11BMB-BI{FS:Test-Cam:1}", name="fs5")
 
     all_standard_pros = [fs2, fs3, fs4]
 
+    time.sleep(1)
 
     # for cam_number, fs in zip([1,2,3,4], [fs1, fs2, fs3, fs4]):
     for cam_number, fs in zip([2, 3, 4], [fs2, fs3, fs4]):
@@ -519,28 +519,25 @@ if Camera_on==True:
 
 
 
-
-
-
 # class StandardsimDetectorV33(SingleTriggerV33, ProsilicaDetector):
-## tiff = Cpt(TIFFPluginWithFileStore,
-##           suffix='TIFF1:',
-##           write_path_template='/XF11ID/data/')
-# cam = Cpt(ProsilicaDetectorCamV33, 'cam1:')
-# image = Cpt(ImagePlugin, 'image1:')
-# stats1 = Cpt(StatsPluginV33, 'Stats1:')
-# stats2 = Cpt(StatsPluginV33, 'Stats2:')
-# stats3 = Cpt(StatsPluginV33, 'Stats3:')
-# stats4 = Cpt(StatsPluginV33, 'Stats4:')
-# stats5 = Cpt(StatsPluginV33, 'Stats5:')
-# trans1 = Cpt(TransformPlugin, 'Trans1:')
-# roi1 = Cpt(ROIPlugin, 'ROI1:')
-# roi2 = Cpt(ROIPlugin, 'ROI2:')
-# roi3 = Cpt(ROIPlugin, 'ROI3:')
-# roi4 = Cpt(ROIPlugin, 'ROI4:')
-# proc1 = Cpt(ProcessPlugin, 'Proc1:')
+#     # tiff = Cpt(TIFFPluginWithFileStore,
+#     #           suffix='TIFF1:',
+#     #           write_path_template='/XF11ID/data/')
+#     cam = Cpt(ProsilicaDetectorCamV33, 'cam1:')
+#     image = Cpt(ImagePlugin, 'image1:')
+#     stats1 = Cpt(StatsPluginV33, 'Stats1:')
+#     stats2 = Cpt(StatsPluginV33, 'Stats2:')
+#     stats3 = Cpt(StatsPluginV33, 'Stats3:')
+#     stats4 = Cpt(StatsPluginV33, 'Stats4:')
+#     stats5 = Cpt(StatsPluginV33, 'Stats5:')
+#     trans1 = Cpt(TransformPlugin, 'Trans1:')
+#     roi1 = Cpt(ROIPlugin, 'ROI1:')
+#     roi2 = Cpt(ROIPlugin, 'ROI2:')
+#     roi3 = Cpt(ROIPlugin, 'ROI3:')
+#     roi4 = Cpt(ROIPlugin, 'ROI4:')
+#     proc1 = Cpt(ProcessPlugin, 'Proc1:')
 
-# simDetector = StandardProsilicaV33('13SIM1:', name='simDetector')
+# simDetector = StandardsimDetectorV33('13SIM1:', name='simDetector')
 
 
 # all_standard_pros = [fs1, fs2, fs3, fs4, fs5, simDetector]

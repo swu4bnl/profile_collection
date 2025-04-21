@@ -1305,7 +1305,7 @@ class SampleXR_WAXS(SampleGISAXS_Generic):
             XR_FILENAME = "{}/data/{}.csv".format(header.start["experiment_alias_directory"], output_file)
         
         if verbosity>=5:
-            theta_output_data = None
+            theta_output_data = pds.DataFrame([])
 
 
         # load theta positions in scan
@@ -1394,9 +1394,9 @@ class SampleXR_WAXS(SampleGISAXS_Generic):
                             )
 
                             theta_temp_output = {'a_scanID':db[-1].start["scan_id"]+1, "b_theta": theta }
-                            theta_temp_output_data = pds.DataFrame(data=theta_temp_output)
+                            theta_temp_output_data = pds.DataFrame([theta_temp_output])
 
-                            if theta_output_data == None: 
+                            if theta_output_data.empty: 
                                 theta_output_data = theta_temp_output_data
 
                             theta_output_data = pds.concat([theta_output_data, theta_temp_output_data], ignore_index=True)
@@ -2394,8 +2394,8 @@ class CapillaryHolder(PositionalHolder):
         # self.xsetOrigin(-17.2)
 
 
-        self.ysetOrigin(-4.8)
-        self.xsetOrigin(-20)
+        self.ysetOrigin(-5)
+        self.xsetOrigin(-15.5) #as of 03/28/2025 --Siyu
 
 
         self.mark("right edge", x=+54.4)

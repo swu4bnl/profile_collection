@@ -288,6 +288,16 @@ class MassFlowControl(Device):
         self.NominalRange_SP = "XF:11BMB-ES{{FC:{}}}F:FullRng-SP".format(device_no)
         self.NominalRange_Sts = "XF:11BMB-ES{{FC:{}}}F:FullRng-RB".format(device_no)
 
+        self._FlowRate_Sts = Cpt(EpicsSignal, "{{FC:{}}}F-I".format(device_no))
+        self._FlowRate_SP = Cpt(EpicsSignal, "{{FC:{}}}F:SP-SP".format(device_no))
+        self._Mode_Sts = Cpt(EpicsSignal, "{{FC:{}}}Mode:Opr-Sts".format(device_no))
+        self._Mode_SP = Cpt(EpicsSignal, "{{FC:{}}}Mode:Opr-Sel".format(device_no))
+        self._ScaleFactor_SP = Cpt(EpicsSignal, "{{FC:{}}}Val:ScaleFactor-SP".format(device_no))
+        self._ScaleFactor_Sts = Cpt(EpicsSignal, "{{FC:{}}}Val:ScaleFactor-RB".format(device_no))
+        self._NominalRange_SP = Cpt(EpicsSignal, "{{FC:{}}}F:FullRng-SP".format(device_no))
+        self._NominalRange_Sts = Cpt(EpicsSignal, "{{FC:{}}}F:FullRng-RB".format(device_no))
+
+
         # self.FlowRate_Sts = 'XF:11BMB-ES{{FC:{}}}F-I'.format(device_no)
 
         return device_no
@@ -412,7 +422,170 @@ class MassFlowControl(Device):
             self.deviceRange()
         return caget(self.NominalRange_Sts)
 
+class MassFlowControl_YF(Device):
+    # def __init__(self):
+    #     self.setDevice()
+        # self.FlowRate_Sts = 'XF:11BMB-ES{FC:1}F-I'
+        # self.FlowRate_SP = 'XF:11BMB-ES{FC:1}F:SP-SP'
+        # self.Mode_Sts = 'XF:11BMB-ES{FC:1}Mode:Opr-Sts'
+        # self.Mode_SP = 'XF:11BMB-ES{FC:1}Mode:Opr-Sel'
+        # self.ScaleFactor_SP = 'XF:11BMB-ES{FC:1}Val:ScaleFactor-SP'
+        # self.ScaleFactor_Sts = 'XF:11BMB-ES{FC:1}Val:ScaleFactor-RB'
+        # self.NominalRange_SP = 'XF:11BMB-ES{FC:1}F:FullRng-SP'
+        # self.NominalRange_Sts = 'XF:11BMB-ES{FC:1}F:FullRng-RB'
 
+    def setDevice(self, device="A1"):
+        if device == "A1":
+            device_no = 1
+        elif device == "A2":
+            device_no = 2
+        elif device == "B1":
+            device_no = 3
+        elif device == "B2":
+            device_no = 4
+        else:
+            print("The device is NOT valid.")
+            device_no = 1
+        print("Select Device {} in port {}".format(device_no, device))
+        self.device = device
+
+        self._FlowRate_Sts = Cpt(EpicsSignal, "{{FC:{}}}F-I".format(device_no))
+        self._FlowRate_SP = Cpt(EpicsSignal, "{{FC:{}}}F:SP-SP".format(device_no))
+        self._Mode_Sts = Cpt(EpicsSignal, "{{FC:{}}}Mode:Opr-Sts".format(device_no))
+        self._Mode_SP = Cpt(EpicsSignal, "{{FC:{}}}Mode:Opr-Sel".format(device_no))
+        self._ScaleFactor_SP = Cpt(EpicsSignal, "{{FC:{}}}Val:ScaleFactor-SP".format(device_no))
+        self._ScaleFactor_Sts = Cpt(EpicsSignal, "{{FC:{}}}Val:ScaleFactor-RB".format(device_no))
+        self._NominalRange_SP = Cpt(EpicsSignal, "{{FC:{}}}F:FullRng-SP".format(device_no))
+        self._NominalRange_Sts = Cpt(EpicsSignal, "{{FC:{}}}F:FullRng-RB".format(device_no))
+
+
+        # self.FlowRate_Sts = 'XF:11BMB-ES{{FC:{}}}F-I'.format(device_no)
+
+        return device_no
+
+    def _setFlow(self, rate, device=None, tolerence=1, verbosity=3):
+        # set the setpoint of flow
+        if device == None:
+            device = self.device
+
+        self.setDevice(device=device)
+
+        if rate < self.deviceRange(verbosity=0) * 0.02:
+            print("The rate is too low. (<2pct of the range)")
+            return
+
+        yield from bps.mv(self._FlowRate_SP, rate)
+
+        if verbosity >= 3:
+            print("The flow rate has been set to {}".format(rate))
+            print("The current flow rate is {}".format(self._FlowRate_Sts.get()))
+        return self._FlowRate_Sts.get()
+
+    def _flow(self, device=None, verbosity=3):
+        if device == None:
+            device = self.device
+
+        self.setDevice(device=device)
+        if verbosity >= 3:
+            print("The current flow rate is {}".format(self._FlowRate_Sts.get()))
+        return self._FlowRate_Sts.get()
+    
+    def flow():
+        RE(self._flow())
+
+    def setMode(self, mode, device=None, verbosity=3):
+        # mode can be 0: OPEN, 1: Close, 2: SetPoint
+        if device == None:
+            device = self.device
+
+        self.setDevice(device=device)
+
+        if mode not in range(0, 3):
+            return print("The input has to be 0: OPEN, 1: Close, 2: SetPoint")
+        else:
+            yield from bps.mv(self._Mode_SP, mode)
+            # while self.mode(device=device) != mode:
+            #     time.sleep(0.2)
+            #     caput(self.Mode_SP, mode)
+            if verbosity >= 3:
+                self.mode(device=device)
+            return self._Mode_Sts.get()
+    def mode(self, device=None, verbosity=3):
+        # OP mode: 0: OPEN, 1: Close, 2: SetPoint
+        if device == None:
+            device = self.device
+
+        self.setDevice(device=device)
+        if verbosity >= 3:
+            self.readMode(device=device)
+            return self._Mode_Sts.get()
+
+    def readMode(self, device=None, verbosity=3):
+        # OP mode: 0: OPEN, 1: Close, 2: SetPoint
+        if device == None:
+            device = self.device
+        self.setDevice(device=device)
+        if self._Mode_Sts.get() == 0:
+            return print("The current mode is {}".format("ON"))
+        if self._Mode_Sts.get() == 1:
+            return print("The current mode is {}".format("OFF"))
+        if self._Mode_Sts.get() == 2:
+            return print("The current mode is {}".format("SETPOINT"))
+
+    def scaleFactor(self, device=None, verbosity=3):
+        # The scale factor depends on the gas.
+        # N2 and air are default as 1. Helium is 0.18.
+        # More details are listed in the manual.
+        if device == None:
+            device = self.device
+
+        self.setDevice(device=device)
+        if verbosity >= 3:
+            print("The scale factor is {}".format(self._ScaleFactor_Sts.get()))
+        return self._ScaleFactor_Sts.get()
+
+    def setScaleFactor(self, val, device=None, verbosity=3):
+        # Three modes: 0: OPEN, 1: Close, 2: SetPoint
+        if device == None:
+            device = self.device
+
+        self.setDevice(device=device)
+
+        yield from bps.mv(self._ScaleFactor_SP, val)
+        # while abs(self.scaleFactor() - val) > 0.02:
+        #     time.sleep(1)
+        #     caput(self.ScaleFactor_SP, val)
+        if verbosity >= 3:
+            self.scaleFactor()
+        return self._ScaleFactor_Sts.get()
+
+    def deviceRange(self, device=None, verbosity=3):
+        # Set the device by seting the Nominal Range.
+        # Model 201: 20SCCM.
+        if device == None:
+            device = self.device
+
+        self.setDevice(device=device)
+        if verbosity >= 3:
+            print("The range of this MFC device is up to {} SCCM.".format(self._NominalRange_Sts.get()))
+        return self._NominalRange_Sts.get()
+
+    def setDeviceRange(self, val, device=None, verbosity=3):
+        # Set the device by seting the Nominal Range.
+        # Model 201: 20SCCM.
+        if device == None:
+            device = self.device
+
+        self.setDevice(device=device)
+
+        yield from bps.mv(self._NominalRange_SP, val)
+        # while abs(self.deviceRange() - val) > 1:
+        #     time.sleep(1)
+        #     caput(self.NominalRange_SP, val)
+        if verbosity >= 3:
+            self.deviceRange()
+        return self._NominalRange_Sts.get()
+    
 from bluesky.plan_stubs import null, sleep, mv, mvr
 from ophyd import (
     Component as Cpt,
@@ -616,6 +789,7 @@ SPW = SorrensonPowerSupply(prefix, name="SPW")
 chiller = Chiller("XF:11BMB-ES{Chiller}", name="chiller")
 
 ioL = ioLogik()
-MFC = MassFlowControl()
+MFC = MassFlowControl()        
+# MFC_dev = MassFlowControl_YF("XF:11BMB-ES", name='MFC')   
 
 BLP = Potentiostats(name="BLP") #BioLogic Potentiostats

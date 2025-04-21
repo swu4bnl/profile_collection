@@ -231,6 +231,16 @@ register_transform('RE', prefix='<')
 #         %run -i {py}
 #         print ( py )  
 
-#     config_load() 
+
+
+
+#     # config_load() 
 
 # load_py()
+
+
+# import glob
+# pyf = sorted( glob.glob ("*.py")  )
+# for py in pyf:
+#     %run -i {py}
+#     print ( py )  

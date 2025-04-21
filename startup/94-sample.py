@@ -3888,63 +3888,105 @@ class Sample_Generic(CoordinateSystem):
     def humidity(self, AI_chan=7, temperature=25, verbosity=3):
         return ioL.readRH(AI_chan=AI_chan, temperature=temperature, verbosity=verbosity)
 
-    def transmission_data_output(self, slot_pos):
+    # def transmission_data_output(self, slot_pos):
+    #     """Output the tranmission of direct beam"""
+    #     h = db[-1]
+    #     dtable = h.table()
+
+    #     # beam.absorber_transmission_list = [1, 0.041, 0.0017425, 0.00007301075, 0.00000287662355, 0.000000122831826, 0.00000000513437]
+    #     scan_id = h.start["scan_id"]
+    #     I_bim5 = h.start["beam_int_bim5"]  # beam intensity from bim5
+    #     I0 = dtable.pilatus2M_stats4_total
+    #     filename = h.start["sample_name"]
+    #     exposure_time = h.start["sample_exposure_time"]
+    #     # I2 = dtable.pilatus2M_stats2_total
+    #     # I3 = 2*dtable.pilatus2M_stats1_total - dtable.pilatus2M_stats2_total
+    #     # In = I3 / beam.absorber_transmission_list[slot_pos] / exposure_time
+
+    #     current_data = {
+    #         "a_filename": filename,
+    #         "b_scanID": scan_id,
+    #         "c_I0": I0,
+    #         "d_I_bim5": I_bim5,
+    #         "e_absorber_slot": slot_pos,
+    #         #'f_absorber_ratio': beam.absorber_transmission_list[slot_pos],
+    #         "f_absorber_ratio": beam.absorber()[1],
+    #         "g_exposure_seconds": exposure_time,
+    #     }
+
+    #     return pds.DataFrame(data=current_data)
+
+    # def intMeasure(self, output_file, exposure_time):
+    #     """Measure the transmission intensity of the sample by ROI4.
+    #     The intensity will be saved in output_file
+    #     """
+    #     if abs(beam.energy(verbosity=0) - 13.5) < 0.1:
+    #         beam.setAbsorber(4)
+    #     elif abs(beam.energy(verbosity=0) - 17) < 0.1:
+    #         beam.setAbsorber(6)
+
+    #     print("Absorber is moved to position 4")
+
+    #     # cms.setAbsorber(4)#armr.move(-31.100167+45) #slot 4 position
+
+    #     saxs_on()
+    #     bsx.move(bsx.position + 6)
+    #     beam.setTransmission(1)
+    #     cms.setDirectBeamROI(size=[10, 10])
+
+    #     self.measure(exposure_time)
+
+    #     temp_data = self.transmission_data_output(4)
+
+    #     cms.modeMeasurement()
+    #     beam.setAbsorber(0)
+    #     # armr.move(-55) #default position with direct beam thru
+
+    #     # output_data = output_data.iloc[0:0]
+
+    #     # create a data file to save the INT data
+    #     INT_FILENAME = "{}/data/{}.csv".format(os.path.dirname(__file__), output_file)
+
+    #     if os.path.isfile(INT_FILENAME):
+    #         output_data = pds.read_csv(INT_FILENAME, index_col=0)
+    #         output_data = output_data.append(temp_data, ignore_index=True)
+    #         output_data.to_csv(INT_FILENAME)
+    #     else:
+    #         temp_data.to_csv(INT_FILENAME)
+
+    #updated on April 1st, 2025
+    def transmission_data_output(self):
         """Output the tranmission of direct beam"""
         h = db[-1]
         dtable = h.table()
 
         # beam.absorber_transmission_list = [1, 0.041, 0.0017425, 0.00007301075, 0.00000287662355, 0.000000122831826, 0.00000000513437]
         scan_id = h.start["scan_id"]
-        I_bim5 = h.start["beam_int_bim5"]  # beam intensity from bim5
+        I_bim5 = 0 # beam intensity from bim5
         I0 = dtable.pilatus2M_stats4_total
         filename = h.start["sample_name"]
         exposure_time = h.start["sample_exposure_time"]
-        # I2 = dtable.pilatus2M_stats2_total
-        # I3 = 2*dtable.pilatus2M_stats1_total - dtable.pilatus2M_stats2_total
-        # In = I3 / beam.absorber_transmission_list[slot_pos] / exposure_time
 
         current_data = {
             "a_filename": filename,
             "b_scanID": scan_id,
             "c_I0": I0,
             "d_I_bim5": I_bim5,
-            "e_absorber_slot": slot_pos,
+            "e_absorber_slot": 0,
             #'f_absorber_ratio': beam.absorber_transmission_list[slot_pos],
-            "f_absorber_ratio": beam.absorber()[1],
+            "f_absorber_ratio": 1,
             "g_exposure_seconds": exposure_time,
         }
 
         return pds.DataFrame(data=current_data)
-
-    def intMeasure(self, output_file, exposure_time):
+    
+    def intMeasure(self, output_file):
         """Measure the transmission intensity of the sample by ROI4.
         The intensity will be saved in output_file
         """
-        if abs(beam.energy(verbosity=0) - 13.5) < 0.1:
-            beam.setAbsorber(4)
-        elif abs(beam.energy(verbosity=0) - 17) < 0.1:
-            beam.setAbsorber(6)
 
-        print("Absorber is moved to position 4")
+        temp_data = self.transmission_data_output()
 
-        # cms.setAbsorber(4)#armr.move(-31.100167+45) #slot 4 position
-
-        saxs_on()
-        bsx.move(bsx.position + 6)
-        beam.setTransmission(1)
-        cms.setDirectBeamROI(size=[10, 10])
-
-        self.measure(exposure_time)
-
-        temp_data = self.transmission_data_output(4)
-
-        cms.modeMeasurement()
-        beam.setAbsorber(0)
-        # armr.move(-55) #default position with direct beam thru
-
-        # output_data = output_data.iloc[0:0]
-
-        # create a data file to save the INT data
         INT_FILENAME = "{}/data/{}.csv".format(os.path.dirname(__file__), output_file)
 
         if os.path.isfile(INT_FILENAME):

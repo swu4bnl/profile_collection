@@ -2274,9 +2274,9 @@ class CMS_Beamline(Beamline):
 
         bsx.move(0)
         bsy.move(0)
-        bsphi.move(-12.0)
-        bsx.move(self.bsx_pos)
-        bsy.move(-15.47)
+        bsphi.move(16)
+        bsx.move(-16)
+        bsy.move(16)
 
         # TODO: Capture image and confirm that it's okay?
         if verbosity >= 1:
@@ -2291,9 +2291,26 @@ class CMS_Beamline(Beamline):
 
         bsx.move(0)
         bsy.move(0)
-        bsphi.move(-223.4)
-        bsx.move(self.bsx_pos)
+        bsphi.move(-181)
+        bsx.move(-13)
         bsy.move(17)
+
+        # TODO: Capture image and confirm that it's okay?
+        if verbosity >= 1:
+            print(
+                "WARNING: This routine merely puts the beamstop in the ~approximately~ correct position. You must confirm that the beam is being blocked correctly."
+            )
+
+        self.beam.transmission(verbosity=verbosity)
+
+    def beamstopCircular_new(self, verbosity=3):
+        self.beam.setTransmission(1e-6)
+
+        bsx.move(0)
+        bsy.move(0)
+        bsphi.move(-64)
+        bsx.move(-14.4)
+        bsy.move(-8.5)
 
         # TODO: Capture image and confirm that it's okay?
         if verbosity >= 1:
