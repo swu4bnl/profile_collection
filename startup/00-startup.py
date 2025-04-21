@@ -15,7 +15,7 @@ import redis
 
 from redis_json_dict import RedisJSONDict
 
-nslsii.configure_base(get_ipython().user_ns, "cms", publish_documents_with_kafka=True)
+nslsii.configure_base(get_ipython().user_ns, "cms", publish_documents_with_kafka=True, redis_url="info.cms.nsls2.bnl.gov")
 
 from bluesky.magics import BlueskyMagics
 from bluesky.preprocessors import pchain
@@ -199,48 +199,6 @@ except ImportError:
             self._cache = dict(super().items())
 
 
-# runengine_metadata_dir = "/nsls2/data/cms/shared/config/runengine-metadata"
-# RE.md = PersistentDict(runengine_metadata_dir)
-
-# proposed changes by Juan
-# runengine_metadata_dir = appdirs.user_data_dir(appname="bluesky") / Path("runengine-metadata")
-# # PersistentDict will create the directory if it does not exist
-# metadata = PersistentDict(runengine_metadata_dir)
-RE.md = RedisJSONDict(redis.Redis("info.cms.nsls2.bnl.gov"), prefix="")
-# RE.md.update(metadata)
-
-# print("a new version of bsui")
-# print("sth is happening")
-
 #this replaces RE() <
 from bluesky.utils import register_transform
 register_transform('RE', prefix='<')
-
-#reload start-up files, modified by Siyu 2024/10/22
-
-
-# import subprocess
-
-# def run_ipython_script(script_path):
-#     subprocess.run([f"{script_path}"])
-
-# def load_py():
-#     import glob
-#     pyf = sorted( glob.glob ("*.py")  )
-#     for py in pyf:
-#         %run -i {py}
-#         print ( py )  
-
-
-
-
-#     # config_load() 
-
-# load_py()
-
-
-# import glob
-# pyf = sorted( glob.glob ("*.py")  )
-# for py in pyf:
-#     %run -i {py}
-#     print ( py )  
