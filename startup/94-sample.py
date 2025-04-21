@@ -1782,9 +1782,9 @@ class Sample_Generic(CoordinateSystem):
 
         # md_current['detector_sequence_ID'] = caget('XF:11BMB-ES{Det:SAXS}:cam1:FileNumber_RBV')
         # md_current['detector_sequence_ID'] = caget('XF:11BMB-ES{}:cam1:FileNumber_RBV'.format(pilatus_Epicsname))
-        if get_beamline().detector[0].name is "pilatus300":
+        if get_beamline().detector[0].name == "pilatus300":
             md_current["detector_sequence_ID"] = caget("XF:11BMB-ES{Det:SAXS}:cam1:FileNumber_RBV")
-        elif get_beamline().detector[0].name is "pilatus2M":
+        elif get_beamline().detector[0].name == "pilatus2M":
             md_current["detector_sequence_ID"] = caget("XF:11BMB-ES{Det:PIL2M}:cam1:FileNumber_RBV")
 
         md_current.update(get_beamline().get_md())
@@ -1814,10 +1814,10 @@ class Sample_Generic(CoordinateSystem):
             # caput('XF:11BMB-ES{}:cam1:AcquireTime'.format(pilatus_Epicsname), exposure_time)
             # caput('XF:11BMB-ES{}:cam1:AcquirePeriod'.format(pilatus_Epicsname), exposure_time+0.1)
 
-            if get_beamline().detector[0].name is "pilatus300":
+            if get_beamline().detector[0].name == "pilatus300":
                 caput("XF:11BMB-ES{Det:SAXS}:cam1:AcquireTime", exposure_time)
                 caput("XF:11BMB-ES{Det:SAXS}:cam1:AcquirePeriod", exposure_time + 0.1)
-            elif get_beamline().detector[0].name is "pilatus2M":
+            elif get_beamline().detector[0].name == "pilatus2M":
                 caput("XF:11BMB-ES{Det:PIL2M}:cam1:AcquireTime", exposure_time)
                 caput("XF:11BMB-ES{Det:PIL2M}:cam1:AcquirePeriod", exposure_time + 0.1)
 
@@ -1900,13 +1900,13 @@ class Sample_Generic(CoordinateSystem):
         # Wait for detectors to be ready
         max_exposure_time = 0.1
         for detector in get_beamline().detector:
-            if detector.name is "pilatus300":
+            if detector.name == "pilatus300":
                 current_exposure_time = detector.cam.acquire_time.get()
                 max_exposure_time = max(max_exposure_time, current_exposure_time)
-            elif detector.name is "pilatus2M":
+            elif detector.name == "pilatus2M":
                 current_exposure_time = detector.cam.acquire_time.get()
                 max_exposure_time = max(max_exposure_time, current_exposure_time)
-            elif detector.name is "pilatus800" or detector.name is "pilatus8002":
+            elif detector.name == "pilatus800" or detector.name == "pilatus8002":
                 current_exposure_time = detector.cam.acquire_time.get()
                 max_exposure_time = max(max_exposure_time, current_exposure_time)
 
@@ -1963,13 +1963,13 @@ class Sample_Generic(CoordinateSystem):
                 # Wait for detectors to be ready
                 max_exposure_time = 0.1
                 for detector in get_beamline().detector:
-                    if detector.name is "pilatus300":
+                    if detector.name == "pilatus300":
                         current_exposure_time = detector.cam.acquire_time.get()
                         max_exposure_time = max(max_exposure_time, current_exposure_time)
-                    elif detector.name is "pilatus2M":
+                    elif detector.name == "pilatus2M":
                         current_exposure_time = detector.cam.acquire_time.get()
                         max_exposure_time = max(max_exposure_time, current_exposure_time)
-                    elif detector.name is "pilatus800" or detector.name is "pilatus8002":
+                    elif detector.name == "pilatus800" or detector.name == "pilatus8002":
                         current_exposure_time = detector.cam.acquire_time.get()
                         max_exposure_time = max(max_exposure_time, current_exposure_time)
 
@@ -2089,13 +2089,13 @@ class Sample_Generic(CoordinateSystem):
         # Wait for detectors to be ready
         max_exposure_time = 0.1
         for detector in get_beamline().detector:
-            if detector.name is "pilatus300":
+            if detector.name == "pilatus300":
                 current_exposure_time = caget("XF:11BMB-ES{Det:SAXS}:cam1:AcquireTime")
                 max_exposure_time = max(max_exposure_time, current_exposure_time)
-            elif detector.name is "pilatus2M":
+            elif detector.name == "pilatus2M":
                 current_exposure_time = caget("XF:11BMB-ES{Det:PIL2M}:cam1:AcquireTime")
                 max_exposure_time = max(max_exposure_time, current_exposure_time)
-            elif detector.name is "pilatus800":
+            elif detector.name == "pilatus800":
                 current_exposure_time = caget("XF:11BMB-ES{Det:PIL800K}:cam1:AcquireTime")
                 max_exposure_time = max(max_exposure_time, current_exposure_time)
             # elif detector.name is 'PhotonicSciences_CMS':
@@ -2118,13 +2118,13 @@ class Sample_Generic(CoordinateSystem):
 
                 status = 1
                 for detector in get_beamline().detector:
-                    if detector.name is "pilatus300":
+                    if detector.name == "pilatus300":
                         if caget("XF:11BMB-ES{Det:SAXS}:cam1:Acquire") == 1:
                             status *= 0
-                    elif detector.name is "pilatus2M":
+                    elif detector.name == "pilatus2M":
                         if caget("XF:11BMB-ES{Det:PIL2M}:cam1:Acquire") == 1:
                             status *= 0
-                    elif detector.name is "pilatus800":
+                    elif detector.name == "pilatus800":
                         if caget("XF:11BMB-ES{Det:PIL800K}:cam1:Acquire") == 1:
                             status *= 0
                     # elif detector.name is 'PhotonicSciences_CMS':
@@ -2153,13 +2153,13 @@ class Sample_Generic(CoordinateSystem):
     def handle_file(self, detector, extra=None, verbosity=3, subdirs=True, linksave=True, **md):
         subdir = ""
         if subdirs:
-            if detector.name is "pilatus300" or detector.name is "pilatus8002":
+            if detector.name == "pilatus300" or detector.name == "pilatus8002":
                 subdir = "/maxs/raw/"
                 detname = "maxs"
-            elif detector.name is "pilatus2M":
+            elif detector.name == "pilatus2M":
                 subdir = "/saxs/raw/"
                 detname = "saxs"
-            elif detector.name is "pilatus800":
+            elif detector.name == "pilatus800":
                 subdir = "/waxs/raw/"
                 detname = "waxs"
             else:
@@ -2214,7 +2214,7 @@ class Sample_Generic(CoordinateSystem):
     def _old_handle_file(self, detector, extra=None, verbosity=3, subdirs=True, linksave=True, **md):
         subdir = ""
 
-        if detector.name is "pilatus300" or detector.name is "pilatus8002":
+        if detector.name == "pilatus300" or detector.name == "pilatus8002":
             # chars = caget('XF:11BMB-ES{Det:SAXS}:TIFF1:FullFileName_RBV')
             # filename = ''.join(chr(char) for char in chars)[:-1]
             filename = detector.tiff.full_file_name.get()  # RL, 20210831
@@ -2254,7 +2254,7 @@ class Sample_Generic(CoordinateSystem):
                 if verbosity >= 3:
                     print("  Data linked as: {}".format(link_name))
 
-        elif detector.name is "pilatus2M":
+        elif detector.name == "pilatus2M":
             foldername = "/nsls2/xf11bm/"
 
             # chars = caget('XF:11BMB-ES{Det:PIL2M}:TIFF1:FullFileName_RBV')
@@ -2301,7 +2301,7 @@ class Sample_Generic(CoordinateSystem):
                 if verbosity >= 3:
                     print("  Data linked as: {}".format(link_name))
 
-        elif detector.name is "pilatus800":
+        elif detector.name == "pilatus800":
             foldername = "/nsls2/xf11bm/"
 
             # chars = caget('XF:11BMB-ES{Det:PIL800K}:TIFF1:FullFileName_RBV')
@@ -2407,7 +2407,7 @@ class Sample_Generic(CoordinateSystem):
               'ygaps' : try to cover the vertical gaps in the Pilatus detector
         """
 
-        if tiling is "xygaps":
+        if tiling == "xygaps":
             if cms.detector == [pilatus2M]:
                 SAXSy_o = SAXSy.user_readback.value
                 SAXSx_o = SAXSx.user_readback.value
@@ -2528,7 +2528,7 @@ class Sample_Generic(CoordinateSystem):
                 if WAXSy.user_readback.value != WAXSy_o:
                     WAXSy.move(WAXSy_o)
 
-        elif tiling is "ygaps":
+        elif tiling == "ygaps":
             if cms.detector == [pilatus2M]:
                 SAXSy_o = SAXSy.user_readback.value
                 SAXSx_o = SAXSx.user_readback.value
@@ -2661,7 +2661,7 @@ class Sample_Generic(CoordinateSystem):
               'ygaps' : try to cover the vertical gaps in the Pilatus detector
         """
 
-        if tiling is "xygaps":
+        if tiling == "xygaps":
             SAXSy_o = SAXSy.user_readback.value
             SAXSx_o = SAXSx.user_readback.value
             WAXSy_o = WAXSy.user_readback.value
@@ -2730,7 +2730,7 @@ class Sample_Generic(CoordinateSystem):
             if SAXSy.user_readback.value != SAXSy_o:
                 SAXSy.move(SAXSy_o)
 
-        elif tiling is "ygaps":
+        elif tiling == "ygaps":
             SAXSy_o = SAXSy.user_readback.value
             SAXSx_o = SAXSx.user_readback.value
             WAXSy_o = WAXSy.user_readback.value
@@ -2874,7 +2874,7 @@ class Sample_Generic(CoordinateSystem):
         # Wait for detectors to be ready
         max_exposure_time = 0
         for detector in get_beamline().detector:
-            if detector.name is "pilatus300" or "pilatus800" or "pilatus2M" or "pilatus8002":
+            if detector.name in {"pilatus300", "pilatus800", "pilatus2M", "pilatus8002"}:
                 max_exposure_time = detector.cam.acquire_time.get()
             else:
                 if verbosity >= 1:
@@ -3039,10 +3039,10 @@ class Sample_Generic(CoordinateSystem):
         # Wait for detectors to be ready
         max_exposure_time = 0
         for detector in get_beamline().detector:
-            if detector.name is "pilatus300" or "pilatus2M":
+            if detector.name in {"pilatus300", "pilatus2M"}:
                 current_exposure_time = caget("XF:11BMB-ES{}:cam1:AcquireTime".format(pilatus_Epicsname))
                 max_exposure_time = max(max_exposure_time, current_exposure_time)
-            elif detector.name is "PhotonicSciences_CMS":
+            elif detector.name == "PhotonicSciences_CMS":
                 current_exposure_time = detector.exposure_time
                 max_exposure_time = max(max_exposure_time, current_exposure_time)
             else:
@@ -3068,14 +3068,14 @@ class Sample_Generic(CoordinateSystem):
 
                 status = 1
                 for detector in get_beamline().detector:
-                    if detector.name is "pilatus300" or "pilatus2M":
+                    if detector.name == "pilatus300" or "pilatus2M":
                         print("status2.5 = ", status)
                         if caget("XF:11BMB-ES{}:cam1:Acquire".format(pilatus_Epicsname)) == 1:
                             status = 0
                             print("status3 = ", status)
                         print("status3.5 = ", status)
 
-                    elif detector.name is "PhotonicSciences_CMS":
+                    elif detector.name == "PhotonicSciences_CMS":
                         if not detector.detector_is_ready(verbosity=0):
                             status = 0
                 print("5")  # 3.0

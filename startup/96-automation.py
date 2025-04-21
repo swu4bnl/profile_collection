@@ -281,7 +281,7 @@ class SampleExchangeRobot(Stage):
             return self.moving == False
 
     def checkSafe(self, check_stage=True):
-        if self._region is not "safe":
+        if self._region != "safe":
             print(
                 "ERROR: Robot arm must start in the 'safe' region of the chamber (current region is '{}'). Move the robot to the safe region (and/or set _region to 'safe').".format(
                     self._region

@@ -3338,7 +3338,7 @@ class CMS_Beamline_GISAXS(CMS_Beamline):
         self.current_mode = "measurement"
 
         # Check if gate valves are open
-        if self.beam.GVdsbig.state() is not "out" and verbosity >= 1:
+        if self.beam.GVdsbig.state() != "out" and verbosity >= 1:
             print("Warning: Sample chamber gate valve (large, downstream) is not open.")
 
     def setDirectBeamROI(self, size=[10, 4], verbosity=3):
@@ -3827,7 +3827,7 @@ class CMS_Beamline_XR(CMS_Beamline_GISAXS):
         self.definePos(size=[10, 4])
 
         # Check if gate valves are open
-        if self.beam.GVdsbig.state() is not "out" and verbosity >= 1:
+        if self.beam.GVdsbig.state() != "out" and verbosity >= 1:
             print("Warning: Sample chamber gate valve (large, downstream) is not open.")
 
     def modeXRAlignment(self, verbosity=3):
