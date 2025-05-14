@@ -147,7 +147,17 @@ class StandardProsilicaV33(SingleTriggerV33, ProsilicaDetector):
     roi4 = Cpt(ROIPlugin, "ROI4:")
     proc1 = Cpt(ProcessPlugin, "Proc1:")
 
-
+    # tiff = Cpt(
+    #     TIFFPluginWithFileStore,
+    #     suffix="TIFF1:",
+    #     #    write_path_template='/nsls2/xf11bm/Pilatus2M/%Y/%m/%d/',     # GPFS client
+    #     # write_path_template='/Pilatus2M/%Y/%m/%d/',                 # NSF-mount of GPFS directory
+    #     #    root='/nsls2/xf11bm'
+    #     read_path_template="/nsls2/data/cms/legacy/xf11bm/Pilatus2M/%Y/%m/%d/",
+    #     write_path_template="/nsls2/data/cms/legacy/xf11bm/Pilatus2M/%Y/%m/%d/",
+    #     root="/nsls2/data/cms/legacy/xf11bm",
+    # )
+    
 class PilatusDetectorCamV33(PilatusDetectorCam):
     """This is used to update the standard prosilica to AD33."""
 
@@ -492,7 +502,7 @@ import time
 if Camera_on==True:
 
     # time.sleep(1)
-    # fs1 = StandardProsilicaV33('XF:11BMA-BI{FS:1-Cam:1}', name='fs1')
+    fs1 = StandardProsilicaV33('XF:11BMA-BI{FS:1-Cam:1}', name='fs1')
     # time.sleep(1)
     fs2 = StandardProsilicaV33("XF:11BMA-BI{FS:2-Cam:1}", name="fs2")
     # time.sleep(1)
@@ -516,6 +526,46 @@ if Camera_on==True:
             except AttributeError:
                 pass
         fs.validate_asyn_ports()
+
+
+
+
+    fs1.tiff.read_attrs = []
+    fs1.stats3.total.kind = "hinted"
+    fs1.stats4.total.kind = "hinted"
+    STATS_NAMES = ["stats1", "stats2", "stats3", "stats4", "stats5"]
+    fs1.read_attrs = ["tiff"] + STATS_NAMES
+    for stats_name in STATS_NAMES:
+        stats_plugin = getattr(fs1, stats_name)
+        stats_plugin.read_attrs = ["total"]
+
+    for item in fs1.stats1.configuration_attrs:
+        item_check = getattr(fs1.stats1, item)
+        item_check.kind = "omitted"
+
+    for item in fs1.stats2.configuration_attrs:
+        item_check = getattr(fs1.stats2, item)
+        item_check.kind = "omitted"
+
+    for item in fs1.stats3.configuration_attrs:
+        item_check = getattr(fs1.stats3, item)
+        item_check.kind = "omitted"
+
+    for item in fs1.stats4.configuration_attrs:
+        item_check = getattr(fs1.stats4, item)
+        item_check.kind = "omitted"
+
+    for item in fs1.stats5.configuration_attrs:
+        item_check = getattr(fs1.stats5, item)
+        item_check.kind = "omitted"
+
+    for item in fs1.tiff.configuration_attrs:
+        item_check = getattr(fs1.tiff, item)
+        item_check.kind = "omitted"
+
+    for item in fs1.cam.configuration_attrs:
+        item_check = getattr(fs1.cam, item)
+        item_check.kind = "omitted"
 
 
 

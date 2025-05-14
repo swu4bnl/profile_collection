@@ -195,7 +195,8 @@ army = EpicsMotor("XF:11BMB-ES{SM:1-Ax:Y}Mtr", name="army")
 # changed from spareM to spareS by RL at 2021/07/23
 # armr = EpicsMotor("XF:11BMB-ES{Spare:L-Ax:S}Mtr", name="armr")
 # changed to camy2 as armr was not integrated into MCS2 at 2025/04/02
-armr = EpicsMotor("XF:11BMB-ES{Cam:OnAxis-Ax:Y2}Mtr", name="armr")
+# armr = EpicsMotor("XF:11BMB-ES{Cam:OnAxis-Ax:Y2}Mtr", name="armr")
+armr = EpicsMotor("XF:11BMB-ES{ATT:1-Ax:X}Mtr", name="armr")
 
 
 ## stages for detectors
@@ -306,7 +307,8 @@ class Beamstop:
     @classmethod
     def goto(cls, name, config_file='beamstop_config.cfg'):
         bs = cls(name, config_file=config_file)
-        bs._move()
+        # bs._move()
+        RE(bs._move())
         return bs
 
     def _load_config(self):
@@ -323,22 +325,38 @@ class Beamstop:
         print(f"[OFFLINE] Moving motors to {self.name} position:")
         print(f"  bsx -> {self.bsx}, bsy -> {self.bsy}, bsphi -> {self.bsphi}")
 
+    # def _move(self):
+    #     print(f"Moving motors to {self.name} position:")
+    #     bsx.move(0)
+    #     bsy.move(0)
+    #     print(f"  bsx -> {0}, bsy -> {0}")
+    #     time.sleep(2)
+    #     bsphi.move(self.bsphi)
+    #     print(f"  bsphi -> {self.bsphi}")
+    #     time.sleep(5)
+    #     bsx.move(self.bsx)
+    #     bsy.move(self.bsy)
+    #     print(f"  bsx -> {self.bsx}, bsy -> {self.bsy}")
+    #     time.sleep(2)
+    #     self.show()
+    #     config_update()
+    #     config_load()
+
+
     def _move(self):
         print(f"Moving motors to {self.name} position:")
-        bsx.move(0)
-        bsy.move(0)
+        yield from bps.mv(bsx, 0, bsy, 0)
         print(f"  bsx -> {0}, bsy -> {0}")
-        time.sleep(2)
-        bsphi.move(self.bsphi)
+        yield from bps.mv(bsphi, self.bsphi)
         print(f"  bsphi -> {self.bsphi}")
-        time.sleep(5)
-        bsx.move(self.bsx)
-        bsy.move(self.bsy)
+        yield from bps.mv(bsx, self.bsx, bsy, self.bsy)
         print(f"  bsx -> {self.bsx}, bsy -> {self.bsy}")
-        time.sleep(2)
         self.show()
         config_update()
         config_load()
+
+    # def move(self):
+    #     RE(self._move())
 
     def x(self):
         print(f"bsx = {self.bsx}")

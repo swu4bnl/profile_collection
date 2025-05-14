@@ -113,6 +113,14 @@ def ave_mir_y():
     print("Average mirror support height = %.4f mm relative to nominal zero height (1400 mm)" % ave_y)
     return ave_y
 
+def ave_mir_x():
+    """Returns the average x position of the toroidal mirror in [mm]"""
+    usx = caget("XF:11BMA-OP{Mir:Tor-Ax:XU}Mtr.RBV")
+    dsx = caget("XF:11BMA-OP{Mir:Tor-Ax:XD}Mtr.RBV")
+    ave_x = 0.5 * (usx + dsx)
+    print("Average mirror nominal x = %.4f mm" % ave_x)
+    return ave_x
+
 
 def get_mir_angle():
     '''calculate the incident angle of the toroidal mirror in [mrad]'''
