@@ -530,42 +530,42 @@ if Camera_on==True:
 
 
 
-    fs1.tiff.read_attrs = []
-    fs1.stats3.total.kind = "hinted"
-    fs1.stats4.total.kind = "hinted"
-    STATS_NAMES = ["stats1", "stats2", "stats3", "stats4", "stats5"]
-    fs1.read_attrs = ["tiff"] + STATS_NAMES
-    for stats_name in STATS_NAMES:
-        stats_plugin = getattr(fs1, stats_name)
-        stats_plugin.read_attrs = ["total"]
+    # fs1.tiff.read_attrs = []
+    # fs1.stats3.total.kind = "hinted"
+    # fs1.stats4.total.kind = "hinted"
+    # STATS_NAMES = ["stats1", "stats2", "stats3", "stats4", "stats5"]
+    # fs1.read_attrs = ["tiff"] + STATS_NAMES
+    # for stats_name in STATS_NAMES:
+    #     stats_plugin = getattr(fs1, stats_name)
+    #     stats_plugin.read_attrs = ["total"]
 
-    for item in fs1.stats1.configuration_attrs:
-        item_check = getattr(fs1.stats1, item)
-        item_check.kind = "omitted"
+    # for item in fs1.stats1.configuration_attrs:
+    #     item_check = getattr(fs1.stats1, item)
+    #     item_check.kind = "omitted"
 
-    for item in fs1.stats2.configuration_attrs:
-        item_check = getattr(fs1.stats2, item)
-        item_check.kind = "omitted"
+    # for item in fs1.stats2.configuration_attrs:
+    #     item_check = getattr(fs1.stats2, item)
+    #     item_check.kind = "omitted"
 
-    for item in fs1.stats3.configuration_attrs:
-        item_check = getattr(fs1.stats3, item)
-        item_check.kind = "omitted"
+    # for item in fs1.stats3.configuration_attrs:
+    #     item_check = getattr(fs1.stats3, item)
+    #     item_check.kind = "omitted"
 
-    for item in fs1.stats4.configuration_attrs:
-        item_check = getattr(fs1.stats4, item)
-        item_check.kind = "omitted"
+    # for item in fs1.stats4.configuration_attrs:
+    #     item_check = getattr(fs1.stats4, item)
+    #     item_check.kind = "omitted"
 
-    for item in fs1.stats5.configuration_attrs:
-        item_check = getattr(fs1.stats5, item)
-        item_check.kind = "omitted"
+    # for item in fs1.stats5.configuration_attrs:
+    #     item_check = getattr(fs1.stats5, item)
+    #     item_check.kind = "omitted"
 
-    for item in fs1.tiff.configuration_attrs:
-        item_check = getattr(fs1.tiff, item)
-        item_check.kind = "omitted"
+    # for item in fs1.tiff.configuration_attrs:
+    #     item_check = getattr(fs1.tiff, item)
+    #     item_check.kind = "omitted"
 
-    for item in fs1.cam.configuration_attrs:
-        item_check = getattr(fs1.cam, item)
-        item_check.kind = "omitted"
+    # for item in fs1.cam.configuration_attrs:
+    #     item_check = getattr(fs1.cam, item)
+    #     item_check.kind = "omitted"
 
 
 
