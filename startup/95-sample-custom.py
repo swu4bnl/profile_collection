@@ -973,7 +973,7 @@ class SampleGISAXS_Generic(Sample_Generic):
             # detselect(pilatus300)
             detselect(pilatus2M)
             for detector in get_beamline().detector:
-                if detector.name == "pilatus2M":
+                if detector.name == "pilatus2m-1":
                     RE(detector.setExposureTime(self.md["exposure_time"]))
                 else:
                     detector.setExposureTime(self.md["exposure_time"])

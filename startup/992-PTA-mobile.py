@@ -150,7 +150,7 @@ army = EpicsMotor("XF:11BMB-ES{SM:1-Ax:Y}Mtr", name="army")
 
 # The SmarAct module is broken. Need to change to a SPARE_S for armr
 # changed from spareM to spareS by RL at 2011/07/23
-armr = EpicsMotor("XF:11BMB-ES{Spare:L-Ax:S}Mtr", name="armr")
+# armr = EpicsMotor("XF:11BMB-ES{Spare:L-Ax:S}Mtr", name="armr")
 
 
 ## stages for detectors

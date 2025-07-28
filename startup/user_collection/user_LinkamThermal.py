@@ -249,20 +249,20 @@ class Sample(SampleTSAXS):
             RE(detector.setExposurePeriod(exposure_period))
             RE(detector.setExposureNumber(num_frames))
 
-            # if detector.name is 'pilatus2M':
+            # if detector.name is "pilatus2m-1":
 
             #     if exposure_time != caget('XF:11BMB-ES{Det:PIL2M}:cam1:AcquireTime'):
             #         caput('XF:11BMB-ES{Det:PIL2M}:cam1:AcquireTime', exposure_time)
             #     caput('XF:11BMB-ES{Det:PIL2M}:cam1:AcquirePeriod', exposure_period)
             #     caput('XF:11BMB-ES{Det:PIL2M}:cam1:NumImages', num_frames)
 
-            # if detector.name is 'pilatus800':
+            # if detector.name is "pilatus800k-1":
             #     if exposure_time != caget('XF:11BMB-ES{Det:PIL800K}:cam1:AcquireTime'):
             #         caput('XF:11BMB-ES{Det:PIL800K}:cam1:AcquireTime', exposure_time)
             #     caput('XF:11BMB-ES{Det:PIL800K}:cam1:AcquirePeriod', exposure_period)
             #     caput('XF:11BMB-ES{Det:PIL800K}:cam1:NumImages', num_frames)
 
-            # if detector.name is 'pilatus300' :
+            # if detector.name is "pilatus300k-1" :
             #     if exposure_time != caget('XF:11BMB-ES{Det:SAXS}:cam1:AcquireTime'):
             #         caput('XF:11BMB-ES{Det:SAXS}:cam1:AcquireTime', exposure_time)
             #     caput('XF:11BMB-ES{Det:SAXS}:cam1:AcquirePeriod', exposure_period)

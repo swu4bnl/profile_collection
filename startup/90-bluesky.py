@@ -369,7 +369,7 @@ def config_update():
 
     current_config = {
         "bsx_pos": cms.bsx_pos,
-        #'armr_absorber_o':beam.armr_absorber_o,
+        'armr_absorber_o':beam.armr_absorber_o,
         "_delta_y_hover": robot._delta_y_hover,
         "_delta_y_slot": robot._delta_y_slot,
         "_delta_garage_x": robot._delta_garage_x,

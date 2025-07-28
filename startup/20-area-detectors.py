@@ -151,6 +151,15 @@ class StandardProsilicaV33(SingleTriggerV33, ProsilicaDetector):
         self.tiff.reg_root = assets_path() + f'{self.name}'
         return super().stage(*args, **kwargs)
     
+    def setExposureTime(self, exposure_time, verbosity=3):
+        yield from mv(self.cam.acquire_time, self.cam.acquire_time.get())  # noop
+
+    def setExposurePeriod(self, exposure_period, verbosity=3):
+        yield from mv(self.cam.acquire_period, self.cam.acquire_period.get())  # noop
+
+    def setExposureNumber(self, exposure_number, verbosity=3):
+        yield from mv(self.cam.num_images, self.cam.num_images.get())  # noop
+    
 class PilatusDetectorCamV33(PilatusDetectorCam):
     """This is used to update the standard prosilica to AD33."""
 
@@ -514,8 +523,8 @@ if Camera_on==True:
 # pilatus300 section
 # if True:
 if Pilatus300_on == True:
-    pilatus300 = Pilatus300V33("XF:11BMB-ES{Det:SAXS}:", name="pilatus300")
-    # pilatus300 = PilatusV33('XF:11BMB-ES{Det:SAXS}:', name='pilatus300')
+    pilatus300 = Pilatus300V33("XF:11BMB-ES{Det:SAXS}:", name="pilatus300k-1")
+    # pilatus300 = PilatusV33('XF:11BMB-ES{Det:SAXS}:', name="pilatus300k-1")
     pilatus300.tiff.read_attrs = []
     pilatus300.stats3.total.kind = "hinted"
     pilatus300.stats4.total.kind = "hinted"

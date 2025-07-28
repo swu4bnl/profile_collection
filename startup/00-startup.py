@@ -3,6 +3,8 @@ print(f'Loading {__file__}')
 import nslsii
 import os
 
+os.environ.pop('TILED_API_KEY')
+
 from tiled.client import from_profile
 from databroker import Broker
 from redis_json_dict import RedisJSONDict
@@ -24,8 +26,8 @@ class ProposalIDPrompt(Prompts):
 ip = get_ipython()
 ip.prompts = ProposalIDPrompt(ip)
 
-# # Configure a Tiled writing client
-# tiled_writing_client = from_profile("nsls2", api_key=os.environ["TILED_BLUESKY_WRITING_API_KEY_CMS"])["cms"]["raw"]
+# Configure a Tiled writing client
+tiled_writing_client = from_profile("nsls2", api_key=os.environ["TILED_BLUESKY_WRITING_API_KEY_CMS"])["cms"]["raw"]
 
 class TiledInserter:
 
@@ -47,7 +49,6 @@ class TiledInserter:
             raise error
 
 tiled_inserter = TiledInserter()
-tiled_inserter = "cms"
 
 nslsii.configure_base(get_ipython().user_ns,
                       tiled_inserter,
@@ -55,7 +56,7 @@ nslsii.configure_base(get_ipython().user_ns,
                       redis_url="info.cms.nsls2.bnl.gov")
 
 print("Initializing Tiled reading client...\nMake sure you check for duo push.")
-tiled_reading_client = from_profile("nsls2", username=None, include_data_sources=True)["cms"]["raw"]
+tiled_reading_client = cat = from_profile("nsls2", username=None)["cms"]["raw"]
 
 # db = Broker(tiled_reading_client)
 

@@ -1,3 +1,5 @@
+print(f'Loading {__file__}')
+
 import time
 from ophyd import Device
 

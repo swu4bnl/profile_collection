@@ -3350,13 +3350,13 @@ class CMS_Beamline_GISAXS(CMS_Beamline):
         The size is changed to [10, 4] for possible beam drift during a user run (changed at 08/16/17)
         """
 
-        if pilatus_name.name == "pilatus2M":
+        if pilatus_name.name == "pilatus2m-1":
             detector = self.SAXS
             # These positions are updated based on current detector position
             det_md = detector.get_md()
             x0 = det_md["detector_SAXS_x0_pix"]
             y0 = det_md["detector_SAXS_y0_pix"]
-        if pilatus_name.name == "pilatus800":
+        if pilatus_name.name == "pilatus800k-1":
             detector = self.WAXS
 
             # These positions are updated based on current detector position
@@ -3385,13 +3385,13 @@ class CMS_Beamline_GISAXS(CMS_Beamline):
         The size argument controls the size (in pixels) of the ROI itself
         (in the format [width, height]). A size=[6,2] is reasonable."""
 
-        if pilatus_name.name == "pilatus2M":
+        if pilatus_name.name == "pilatus2m-1":
             detector = self.SAXS
             # These positions are updated based on current detector position
             det_md = detector.get_md()
             x0 = det_md["detector_SAXS_x0_pix"]
             y0 = det_md["detector_SAXS_y0_pix"]
-        if pilatus_name.name == "pilatus800":
+        if pilatus_name.name == "pilatus800k-1":
             detector = self.WAXS
 
             # These positions are updated based on current detector position
@@ -3438,13 +3438,13 @@ class CMS_Beamline_GISAXS(CMS_Beamline):
         The size argument controls the size (in pixels) of the ROI itself
         (in the format [width, height]). A size=[6,2] is reasonable."""
 
-        if pilatus_name.name == "pilatus2M":
+        if pilatus_name.name == "pilatus2m-1":
             detector = self.SAXS
             # These positions are updated based on current detector position
             det_md = detector.get_md()
             x0 = det_md["detector_SAXS_x0_pix"]
             y0 = det_md["detector_SAXS_y0_pix"]
-        if pilatus_name.name == "pilatus800":
+        if pilatus_name.name == "pilatus800k-1":
             detector = self.WAXS
 
             # These positions are updated based on current detector position
@@ -3521,14 +3521,14 @@ class CMS_Beamline_GISAXS(CMS_Beamline):
         y_offset_pix = y_offset_mm / pixel_size
 
         # for pilatus800k
-        if pilatus_name.name == "pilatus800":
+        if pilatus_name.name == "pilatus800k-1":
             y_pos = int(y0 - size[1] / 2 - y_offset_pix)
 
         # for pilatus2M, placed up-side down
         # y_pos = int( y0 - size[1]/2 + y_offset_pix )
 
         # for pilatus2M, with pattern rotated 180deg. changed at 052918
-        if pilatus_name.name == "pilatus2M":
+        if pilatus_name.name == "pilatus2m-1":
             y_pos = int(y0 - size[1] / 2 - y_offset_pix)
 
         # y pixels for intermodule gaps, for pilatus2M (195 pixels high module, 17 pixels high gap)
