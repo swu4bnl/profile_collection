@@ -1900,7 +1900,7 @@ class Sample_Generic(CoordinateSystem):
         # Wait for detectors to be ready
         max_exposure_time = 0.1
         for detector in get_beamline().detector:
-            print('here in expose:', detector.name)
+            # print('here in expose:', detector.name)
             if detector.name == "pilatus300k-1":
                 current_exposure_time = detector.cam.acquire_time.get()
                 max_exposure_time = max(max_exposure_time, current_exposure_time)
@@ -2150,9 +2150,6 @@ class Sample_Generic(CoordinateSystem):
                     return
 
         filename = detector.tiff.full_file_name.get()  # RL, 20210831
-        if not os.path.isfile(filename):
-            print("File does not exist")
-            return 
         # Alternate method to get the last filename
         # filename = '{:s}/{:s}.tiff'.format( detector.tiff.file_path.get(), detector.tiff.file_name.get()  )
 
@@ -2171,27 +2168,28 @@ class Sample_Generic(CoordinateSystem):
             # savename = self.get_savename(savename_extra=extra)
             savename = md["filename"]
             # link_name = '{}/{}{}_{:04d}_maxs.tiff'.format(RE.md['experiment_alias_directory'], subdir, savename, RE.md['scan_id']-1)
-            link_name = "{}/{}{}_{}.tiff".format(RE.md["experiment_alias_directory"], subdir, savename, detname)
-
-            if os.path.isfile(link_name):
-                i = 1
-                while os.path.isfile("{}.{:d}".format(link_name, i)):
-                    i += 1
-                os.rename(link_name, "{}.{:d}".format(link_name, i))
-            os.symlink(filename, link_name)
-
-
-            #debug the losing data issue on pil2m. suggested by T. Caswell
-            # with open(link_name, 'rb') as fin:
-            #     h = hashlib.md5(fin.read(1024)).hexdigest()
-            # with open(link_name + '.md5', 'w') as fout:
-            #     fout.write(h)
+            link_name = "{}/{}{}_000000_{}.tiff".format(RE.md["experiment_alias_directory"], subdir, savename, detname)
+            print(f"  A symlink will be created at: {proposal_path()}experiments/{link_name}")
+            
+            # if os.path.isfile(link_name):
+            #     i = 1
+            #     while os.path.isfile("{}.{:d}".format(link_name, i)):
+            #         i += 1
+            #     os.rename(link_name, "{}.{:d}".format(link_name, i))
+            # os.symlink(filename, link_name)
 
 
-            if verbosity >= 3:
-                print("  Data linked as: {}".format(link_name))
-                if not os.path.isfile(os.readlink(link_name)): #added by RL, 20231109
-                    raise ValueError('NO IMAGE OUTPUT.')
+            # #debug the losing data issue on pil2m. suggested by T. Caswell
+            # # with open(link_name, 'rb') as fin:
+            # #     h = hashlib.md5(fin.read(1024)).hexdigest()
+            # # with open(link_name + '.md5', 'w') as fout:
+            # #     fout.write(h)
+
+
+            # if verbosity >= 3:
+            #     print("  Data linked as: {}".format(link_name))
+            #     if not os.path.isfile(os.readlink(link_name)): #added by RL, 20231109
+            #         raise ValueError('NO IMAGE OUTPUT.')
                 
     def _old_handle_file(self, detector, extra=None, verbosity=3, subdirs=True, linksave=True, **md):
         subdir = ""
@@ -3742,42 +3740,43 @@ class Sample_Generic(CoordinateSystem):
             # savename = md['filename'][:-5]
 
             savename = self.get_savename(savename_extra=extra)
-            link_name = "{}/{}{}_{:06d}_{}.tiff".format(
-                RE.md["experiment_alias_directory"],
-                subdir,
-                savename,
-                RE.md["scan_id"] - 1,
-                detname,
-            )
-            link_name_part1 = "{}/{}{}_{:06d}".format(
-                RE.md["experiment_alias_directory"],
-                subdir,
-                savename,
-                RE.md["scan_id"] - 1,
-            )
+            # link_name = "{}/{}{}_{:06d}_{}.tiff".format(
+            #     RE.md["experiment_alias_directory"],
+            #     subdir,
+            #     savename,
+            #     RE.md["scan_id"] - 1,
+            #     detname,
+            # )
+            # link_name_part1 = "{}/{}{}_{:06d}".format(
+            #     RE.md["experiment_alias_directory"],
+            #     subdir,
+            #     savename,
+            #     RE.md["scan_id"] - 1,
+            # )
             # link_name = '{}/{}{}_{:06d}_{}.tiff'.format(RE.md['experiment_alias_directory'], subdir, savename, RE.md['scan_id'], detname)
             # link_name_part1 = '{}/{}{}_{:06d}'.format(RE.md['experiment_alias_directory'], subdir, savename, RE.md['scan_id'])
 
-            if os.path.isfile(link_name):
-                i = 1
-                while os.path.isfile("{}.{:d}".format(link_name, i)):
-                    i += 1
-                os.rename(link_name, "{}.{:d}".format(link_name, i))
+            # if os.path.isfile(link_name):
+            #     i = 1
+            #     while os.path.isfile("{}.{:d}".format(link_name, i)):
+            #         i += 1
+            #     os.rename(link_name, "{}.{:d}".format(link_name, i))
 
-            for num_frame in range(num_frames):
-                filename_new = "{}_{:06d}.tiff".format(filename_part1, num_frame)
-                if os.path.isfile(filename_new) == False:
-                    return print("File number {} does not exist.".format(num_frame))
+            # for num_frame in range(num_frames):
+            #     filename_new = "{}_{:06d}.tiff".format(filename_part1, num_frame)
+            #     if os.path.isfile(filename_new) == False:
+            #         return print("File number {} does not exist.".format(num_frame))
 
-                link_name_new = "{}_{:06d}_{}.tiff".format(link_name_part1, num_frame, detname)
-                os.symlink(filename_new, link_name_new)
-                if verbosity >= 3:
-                    if num_frame == 0 or num_frame == np.max(num_frames):
-                        print("  Data {} linked as: {}".format(filename_new, link_name_new))
+            #     link_name_new = "{}_{:06d}_{}.tiff".format(link_name_part1, num_frame, detname)
+            #     os.symlink(filename_new, link_name_new)
+            #     if verbosity >= 3:
+            #         if num_frame == 0 or num_frame == np.max(num_frames):
+            #             print("  Data {} linked as: {}".format(filename_new, link_name_new))
             savename = self.get_savename(savename_extra=extra)
             # savename = md['filename']
             # link_name = '{}/{}{}_{:04d}_maxs.tiff'.format(RE.md['experiment_alias_directory'], subdir, savename, RE.md['scan_id']-1)
-            link_name = "{}/{}{}_{}.tiff".format(RE.md["experiment_alias_directory"], subdir, savename, detname)
+            link_name = "{}/{}{}_000000_{}.tiff".format(RE.md["experiment_alias_directory"], subdir, savename, detname)
+            print(f"  Symlinks will be created at: {proposal_path()}experiments/{link_name}")
 
     # Control methods
     ########################################
