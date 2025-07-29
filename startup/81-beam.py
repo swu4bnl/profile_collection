@@ -3130,6 +3130,106 @@ class CMS_Beamline(Beamline):
                 "/n The folder ::: {} ::: has been made for users. /n".format(RE.md["experiment_alias_directory"])
             )
 
+    def setMetadata_new(self, verbosity=3):
+        """Guides the user through setting some of the required and recommended
+        meta-data fields."""
+
+        if verbosity >= 3:
+            print("This will guide you through adding some meta-data for the upcoming experiment.")
+        if verbosity >= 4:
+            print(
+                "You can accept default values (shown in square [] brackets) by pressing enter. You can leave a value blank (or put a space) to skip that entry."
+            )
+
+        # Set some values automatically
+        month = int(time.strftime("%m"))
+        if month <= 4:
+            cycle = 1
+        elif month <= 8:
+            cycle = 2
+        else:
+            cycle = 3
+        RE.md["experiment_cycle"] = "{:s}_{:d}".format(time.strftime("%Y"), cycle)
+
+        RE.md["calibration_energy_keV"] = float(round(self.beam.energy(verbosity=0), 3))
+        RE.md["calibration_wavelength_A"] = float(round(self.beam.wavelength(verbosity=0), 5))
+
+        # TODO:
+        # RE.md['calibration_detector_distance_m'] =
+        # RE.md['calibration_detector_x0'] =
+        # RE.md['calibration_detector_y0'] =
+
+        # Ask the user some questions
+
+        questions = [
+            ["experiment_proposal_number", "Proposal number"],
+            ["experiment_SAF_number", "SAF number"],
+            ["experiment_group", "User group (e.g. PI)"],
+            ["experiment_user", "The specific user/person running the experiment"],
+            ["experiment_project", "Project name/code"],
+            ["userpy_alias_directory", "Alias directory"],
+            ["experiment_alias_directory", "Alias directory"],
+            [
+                "experiment_type",
+                "Type of experiments/measurements (SAXS, GIWAXS, etc.)",
+            ],
+        ]
+
+        # TBD:
+        # Path where data will be stored?
+
+        self._dialog_total_questions = len(questions)
+        self._dialog_question_number = 1
+
+        for key, text in questions:
+            try:
+                self._ask_question(key, text)
+            except KeyboardInterrupt:
+                return
+
+        if verbosity >= 4:
+            print("You can also add/edit metadata directly using the RE.md object.")
+
+        #RE.md["userpy_alias_directory"] = '/home/xf11bm/.ipython/profile_collection/users/2025-2/TKoga'
+        if os.path.exists(RE.md["userpy_alias_directory"]):
+            print("/n The folder has existed. Please change folder name if necessary./n")
+        else:
+            os.makedirs(RE.md["userpy_alias_directory"], exist_ok=True)
+
+        #for double-checking folders
+        #/nsls2//data/cms/shared/config/bluesky/profile_collection/users/        
+        print('user.py will be saved in folder: {}'.format(RE.md["userpy_alias_directory"]))
+        print('data will be saved in folder: {}'.format(RE.md["experiment_alias_directory"]))
+        print('redo cms.setMeadata() if any folder is wrong! ')
+
+        # if os.path.exists(RE.md["experiment_alias_directory"]):
+        #     print("/n The folder has existed. Please change folder name if necessary./n")
+        # else:
+        #     os.makedirs(RE.md["experiment_alias_directory"], exist_ok=True)
+            # os.makedirs(os.path.join(RE.md["experiment_alias_directory"], "waxs"), exist_ok=True)
+            # os.makedirs(
+            #     os.path.join(RE.md["experiment_alias_directory"], "waxs/raw"),
+            #     exist_ok=True,
+            # )
+            # os.makedirs(
+            #     os.path.join(RE.md["experiment_alias_directory"], "waxs/analysis"),
+            #     exist_ok=True,
+            # )
+            # os.makedirs(os.path.join(RE.md["experiment_alias_directory"], "saxs"), exist_ok=True)
+            # os.makedirs(
+            #     os.path.join(RE.md["experiment_alias_directory"], "saxs/raw"),
+            #     exist_ok=True,
+            # )
+            # os.makedirs(
+            #     os.path.join(RE.md["experiment_alias_directory"], "saxs/analysis"),
+            #     exist_ok=True,
+            # )
+        # os.makedirs(os.path.join(RE.md["experiment_alias_directory"], "data"), exist_ok=True)
+            # os.makedirs(os.path.join(RE.md['experiment_alias_directory'], 'saxs'), exist_ok=True)
+        # print(
+        #         "/n The folder ::: {} ::: has been made for users. /n".format(RE.md["experiment_alias_directory"])
+        #     )
+
     def _ask_question(self, key, text, default=None):
         if default is None and key in RE.md:
             default = RE.md[key]

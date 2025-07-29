@@ -3,7 +3,7 @@ print(f'Loading {__file__}')
 import nslsii
 import os
 
-os.environ.pop('TILED_API_KEY')
+os.environ.pop('TILED_API_KEY')   # Make sure no user-defined API key is set
 
 from tiled.client import from_profile
 from databroker import Broker

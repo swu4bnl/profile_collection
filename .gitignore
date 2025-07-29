@@ -144,3 +144,6 @@ doc/source/_generated_images/*
 
 # Audio Files
 *.wav
+
+# Users scripts
+users/

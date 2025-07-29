@@ -2168,7 +2168,7 @@ class Sample_Generic(CoordinateSystem):
             # savename = self.get_savename(savename_extra=extra)
             savename = md["filename"]
             # link_name = '{}/{}{}_{:04d}_maxs.tiff'.format(RE.md['experiment_alias_directory'], subdir, savename, RE.md['scan_id']-1)
-            link_name = "{}/{}{}_000000_{}.tiff".format(RE.md["experiment_alias_directory"], subdir, savename, detname)
+            link_name = "{}/{}{}_000000_{}.tiff".format(RE.md["experiment_alias_directory"], subdir, savename, detname).replace('//','/')
             print(f"  A symlink will be created at: {proposal_path()}experiments/{link_name}")
             
             # if os.path.isfile(link_name):
@@ -2809,7 +2809,7 @@ class Sample_Generic(CoordinateSystem):
         md_current["sample_savename"] = savename
         md_current["measure_type"] = measure_type
         # md_current['filename'] = '{:s}_{:04d}.tiff'.format(savename, md_current['detector_sequence_ID'])
-        md_current["filename"] = "{:s}_{:04d}.tiff".format(savename, RE.md["scan_id"])
+        md_current["filename"] = "{:s}_{:04d}".format(savename, RE.md["scan_id"])
         md_current["beam_int_bim3"] = beam.bim3.flux(verbosity=0)
         md_current["beam_int_bim4"] = beam.bim4.flux(verbosity=0)
         md_current["beam_int_bim5"] = beam.bim5.flux(verbosity=0)
@@ -2919,8 +2919,8 @@ class Sample_Generic(CoordinateSystem):
         md_current.update(self.get_measurement_md())
         md_current["sample_savename"] = savename
         md_current["measure_type"] = measure_type
-        # md_current['filename'] = '{:s}_{:04d}.tiff'.format(savename, md_current['detector_sequence_ID'])
-        # md_current['filename'] = '{:s}_{:04d}.tiff'.format(savename, RE.md['scan_id'])
+        # md_current['filename'] = '{:s}_{:04d}'.format(savename, md_current['detector_sequence_ID'])
+        # md_current['filename'] = '{:s}_{:04d}'.format(savename, RE.md['scan_id'])
         md_current["filename"] = "{:s}_{:06d}".format(savename, RE.md["scan_id"])
         md_current.update(md)
 
@@ -2968,8 +2968,8 @@ class Sample_Generic(CoordinateSystem):
         md_current["measure_type"] = measure_type
 
         md_current.update(self.get_measurement_md())
-        # md_current['filename'] = '{:s}_{:04d}.tiff'.format(savename, md_current['detector_sequence_ID'])
-        md_current["filename"] = "{:s}_{:04d}.tiff".format(savename, RE.md["scan_id"])
+        # md_current['filename'] = '{:s}_{:04d}'.format(savename, md_current['detector_sequence_ID'])
+        md_current["filename"] = "{:s}_{:04d}".format(savename, RE.md["scan_id"])
         md_current.update(md)
         self._test_expose(exposure_time, shutteronoff=shutteronoff, extra=extra, verbosity=verbosity, **md_current)
         self.md["measurement_ID"] += 1
@@ -3383,7 +3383,7 @@ class Sample_Generic(CoordinateSystem):
         md_current["scan"] = "scan_measure"
         md_current.update(self.get_measurement_md())
         md_current["measure_series_num_frames"] = num_frames
-        md_current["filename"] = "{:s}_{:04d}.tiff".format(savename, RE.md["scan_id"])
+        md_current["filename"] = "{:s}_{:04d}".format(savename, RE.md["scan_id"])
         md_current["measure_series_motor"] = motor.name
         md_current["measure_series_positions"] = [start, stop]
         md_current["exposure_time"] = exposure_time
@@ -3488,16 +3488,16 @@ class Sample_Generic(CoordinateSystem):
         md_current["measure_type"] = measure_type
         md_current["series"] = "series_measure"
         md_current.update(self.get_measurement_md())
-        # md_current['filename'] = '{:s}_{:04d}.tiff'.format(savename, md_current['detector_sequence_ID'])
+        # md_current['filename'] = '{:s}_{:04d}'.format(savename, md_current['detector_sequence_ID'])
         md_current["measure_series_num_frames"] = num_frames
-        md_current["filename"] = "{:s}_{:04d}.tiff".format(savename, RE.md["scan_id"])
-        # md_current['filename'] = '{:s}_{:04d}.tiff'.format(savename, RE.md['scan_id']+1)
+        md_current["filename"] = "{:s}_{:04d}".format(savename, RE.md["scan_id"])
+        # md_current['filename'] = '{:s}_{:04d}'.format(savename, RE.md['scan_id']+1)
         md_current["exposure_time"] = exposure_time
         md_current["exposure_period"] = exposure_period
         # md_current['measure_series_motor'] = motor.name
         # md_current['measure_series_positions'] = [start, stop]
 
-        # md_current['fileno'] = '{:s}_{:04d}.tiff'.format(savename, RE.md['scan_id'])
+        # md_current['fileno'] = '{:s}_{:04d}'.format(savename, RE.md['scan_id'])
         md_current.update(md)
 
         print(RE.md["scan_id"])
@@ -3722,8 +3722,8 @@ class Sample_Generic(CoordinateSystem):
                     print("WARNING: Can't do file handling for detector '{}'.".format(detector.name))
                     return
 
-        filename = detector.tiff.full_file_name.get()  # RL, 20210831
-        filename_part1 = "{:s}/{:s}".format(detector.tiff.file_path.get(), detector.tiff.file_name.get())
+        # filename = detector.tiff.full_file_name.get()  # RL, 20210831
+        # filename_part1 = "{:s}/{:s}".format(detector.tiff.file_path.get(), detector.tiff.file_name.get())
 
         # Alternate method to get the last filename
         # filename = '{:s}/{:s}.tiff'.format( detector.tiff.file_path.get(), detector.tiff.file_name.get()  )
@@ -3740,6 +3740,7 @@ class Sample_Generic(CoordinateSystem):
             # savename = md['filename'][:-5]
 
             savename = self.get_savename(savename_extra=extra)
+            # savename = RE.md["filename"]
             # link_name = "{}/{}{}_{:06d}_{}.tiff".format(
             #     RE.md["experiment_alias_directory"],
             #     subdir,
@@ -3756,12 +3757,6 @@ class Sample_Generic(CoordinateSystem):
             # link_name = '{}/{}{}_{:06d}_{}.tiff'.format(RE.md['experiment_alias_directory'], subdir, savename, RE.md['scan_id'], detname)
             # link_name_part1 = '{}/{}{}_{:06d}'.format(RE.md['experiment_alias_directory'], subdir, savename, RE.md['scan_id'])
 
-            # if os.path.isfile(link_name):
-            #     i = 1
-            #     while os.path.isfile("{}.{:d}".format(link_name, i)):
-            #         i += 1
-            #     os.rename(link_name, "{}.{:d}".format(link_name, i))
-
             # for num_frame in range(num_frames):
             #     filename_new = "{}_{:06d}.tiff".format(filename_part1, num_frame)
             #     if os.path.isfile(filename_new) == False:
@@ -3772,10 +3767,9 @@ class Sample_Generic(CoordinateSystem):
             #     if verbosity >= 3:
             #         if num_frame == 0 or num_frame == np.max(num_frames):
             #             print("  Data {} linked as: {}".format(filename_new, link_name_new))
-            savename = self.get_savename(savename_extra=extra)
             # savename = md['filename']
             # link_name = '{}/{}{}_{:04d}_maxs.tiff'.format(RE.md['experiment_alias_directory'], subdir, savename, RE.md['scan_id']-1)
-            link_name = "{}/{}{}_000000_{}.tiff".format(RE.md["experiment_alias_directory"], subdir, savename, detname)
+            link_name = "{}/{}{}_{}_000000_{}.tiff".format(RE.md["experiment_alias_directory"], subdir, savename, RE.md["scan_id"] - 1, detname).replace('//', '/')
             print(f"  Symlinks will be created at: {proposal_path()}experiments/{link_name}")
 
     # Control methods
