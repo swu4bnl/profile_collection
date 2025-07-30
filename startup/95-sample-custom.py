@@ -2395,7 +2395,7 @@ class CapillaryHolder(PositionalHolder):
 
 
         self.ysetOrigin(-5)
-        self.xsetOrigin(-15.5) #as of 03/28/2025 --Siyu
+        self.xsetOrigin(-16) #as of 06/15/2025 --Siyu
 
 
         self.mark("right edge", x=+54.4)

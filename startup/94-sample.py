@@ -3524,9 +3524,15 @@ class Sample_Generic(CoordinateSystem):
 
         # Perform the scan
         # get_beamline().beam._test_on(wait_time=0.1)
-        get_beamline().beam.on()
-        RE(count(get_beamline().detector, md=md_current))
-        get_beamline().beam.off()
+        try:
+            get_beamline().beam.on()
+            RE(count(get_beamline().detector, md=md_current))
+        except:
+            print('Series Scan Interupted! Handling Files.')
+            get_beamline().beam.off()
+        else:
+            print('Series Scan Finished! Handling Files.')
+            get_beamline().beam.off()
 
         self.md["measurement_ID"] += 1
         # reset the num_frame back to 1
@@ -3536,7 +3542,105 @@ class Sample_Generic(CoordinateSystem):
         # data collected, link uid to file name
         for detector in cms.detector:
             print("handling the file names")
+            print('Don\'t Ctrl +C !!')
             self.handle_fileseries(detector, num_frames=num_frames, extra=extra, verbosity=verbosity, **md)
+
+
+    def _series_measure(
+        self,
+        num_frames,
+        exposure_time=None,
+        exposure_period=None,
+        detectors=None,
+        extra=None,
+        per_step=None,
+        wait_time=None,
+        measure_type="Series_measure",
+        verbosity=3,
+        fill_gaps=False,
+        **md,
+    ):
+        """
+        Continueous shots with internal trigger of detectors. (burst mode)
+
+        Parameters
+        ----------
+        num_frames : int
+            The number of data points.
+        exposure_time: float
+            The exposure time for single point
+        exposure_period: float
+            The exposure period for single point. should be at least 0.05s longer than exposure_time
+        md : dict, optional
+            metadata
+        """
+        # span = abs(stop-start)
+        # positions, dp = np.linspace(start, stop, num, endpoint=True, retstep=True)
+
+        if detectors is None:
+            detectors = cms.detector
+
+        if exposure_time is not None:
+            self.set_attribute("exposure_time", exposure_time)
+
+        # Set exposure time
+        for detector in get_beamline().detector:
+            if exposure_time != detector.cam.acquire_time.get():
+                yield from  detector.setExposureTime(exposure_time)
+
+            yield from  detector.setExposurePeriod(exposure_period)
+            yield from  detector.setExposureNumber(num_frames)
+
+        # bec.disable_plots()
+        # bec.disable_table()
+
+        savename = self.get_savename(savename_extra=extra)
+        if verbosity >= 2 and (get_beamline().current_mode != "measurement"):
+            print(
+                "WARNING: Beamline is not in measurement mode (mode is '{}')".format(get_beamline().current_mode)
+            )
+
+        if verbosity >= 1 and len(get_beamline().detector) < 1:
+            print("ERROR: No detectors defined in cms.detector")
+            return
+
+        md_current = self.get_md()
+        md_current["sample_savename"] = savename
+        md_current["measure_type"] = measure_type
+        md_current["series"] = "series_measure"
+        md_current.update(self.get_measurement_md())
+        # md_current['filename'] = '{:s}_{:04d}.tiff'.format(savename, md_current['detector_sequence_ID'])
+        md_current["measure_series_num_frames"] = num_frames
+        md_current["filename"] = "{:s}_{:04d}.tiff".format(savename, RE.md["scan_id"])
+        # md_current['filename'] = '{:s}_{:04d}.tiff'.format(savename, RE.md['scan_id']+1)
+        md_current["exposure_time"] = exposure_time
+        md_current["exposure_period"] = exposure_period
+        # md_current['measure_series_motor'] = motor.name
+        # md_current['measure_series_positions'] = [start, stop]
+
+        # md_current['fileno'] = '{:s}_{:04d}.tiff'.format(savename, RE.md['scan_id'])
+        md_current.update(md)
+
+        print(RE.md["scan_id"])
+
+        # Perform the scan
+        # get_beamline().beam._test_on(wait_time=0.1)
+        yield from shutter_on()
+        yield from  count(get_beamline().detector, md=md_current)
+        yield from shutter_off()
+
+
+        self.md["measurement_ID"] += 1
+        # reset the num_frame back to 1
+        for detector in get_beamline().detector:
+            yield from  detector.setExposureNumber(1)
+
+        # data collected, link uid to file name
+        for detector in cms.detector:
+            print("handling the file names")
+            print('Don\'t Ctrl +C !!')
+            self.handle_fileseries(detector, num_frames=num_frames, extra=extra, verbosity=verbosity, **md)
+
 
     def initialDetector(self):
         # reset the num_frame back to 1

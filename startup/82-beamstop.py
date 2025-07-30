@@ -6,25 +6,32 @@ from pathlib import Path
 from datetime import datetime
 
 class Beamstop:
-    def __init__(self, name, config_file='beamstop_config.cfg'):
+    def __init__(self, name, config_file='/home/xf11bm/.ipython/profile_collection/startup/beamstop_config.cfg'):
         self.name = name
         self.config_file = Path(config_file)
+        self.positions = self._load_config()
+        self._sync()
+        self.load()
+
+    def _sync(self):
         self.bsx = bsx.position
         self.bsy = bsy.position
         self.bsphi = bsphi.position
-        self.positions = self._load_config()
-        self.load()
 
     @classmethod
-    def get(cls, name, config_file='beamstop_config.cfg'):
+    def get(cls, name, config_file='/home/xf11bm/.ipython/profile_collection/startup/beamstop_config.cfg'):
         print(f"Set current beamstop to '{name}' without moving.")
         return cls(name, config_file=config_file)
 
     @classmethod
-    def goto(cls, name, config_file='beamstop_config.cfg'):
+    def goto(cls, name, config_file='/home/xf11bm/.ipython/profile_collection/startup/beamstop_config.cfg'):
         bs = cls(name, config_file=config_file)
         # bs._move()
         RE(bs._move())
+        beam.setTransmission(1e-6)
+        print('Transmission set to 1e-6!')
+        print('Gradually ramp to 1 while monitoring using SAXS detector!')
+
         return bs
 
     def _load_config(self):
@@ -67,50 +74,65 @@ class Beamstop:
         print(f"  bsphi -> {self.bsphi}")
         yield from bps.mv(bsx, self.bsx, bsy, self.bsy)
         print(f"  bsx -> {self.bsx}, bsy -> {self.bsy}")
+        self._sync()
         self.show()
         config_update()
+        print("config_update() done!")
         config_load()
+        print("config_load() done!")
 
     # def move(self):
     #     RE(self._move())
 
     def x(self):
         print(f"bsx = {self.bsx}")
+        return self.bsx
 
     def y(self):
         print(f"bsy = {self.bsy}")
+        return self.bsy
 
     def phi(self):
         print(f"bsphi = {self.bsphi}")
+        return self.bsphi
 
     def xr(self, delta):
+        self._sync()
         self.bsx += delta
         bsx.move(self.bsx)
+        # yield from bps.mv(bsx, self.bsx)
         print(f"bsx moved relatively by {delta} mm -> {self.bsx}")
 
     def yr(self, delta):
+        self._sync()
         self.bsy += delta
         bsy.move(self.bsy)
+        # yield from bps.mv(bsy, self.bsy)
         print(f"bsy moved relatively by {delta} mm -> {self.bsy}")
 
     def phir(self, delta):
+        self._sync()
         self.bsphi += delta
         bsphi.move(self.bsphi)
+        # yield from bps.mv(bsphi, self.bsphi)
         print(f"bsphi moved relatively by {delta} deg -> {self.bsphi}")
 
     def xabs(self, value):
         self.bsx = value
         bsx.move(self.bsx)
+        # yield from bps.mv(bsx, self.bsx)
         print(f"bsx moved to {value} mm")
 
     def yabs(self, value):
         self.bsy = value
         bsy.move(self.bsy)
+        # yield from bps.mv(bsy, self.bsy)
         print(f"bsy moved to {value} mm")
 
     def phiabs(self, value):
         self.bsphi = value
         bsphi.move(self.bsphi)
+        # yield from bps.mv(bsphi, self.bsphi)
         print(f"bsphi moved to {value} deg")
 
     def save(self):
@@ -125,6 +147,11 @@ class Beamstop:
         self._save_config()
         print(f"Saved current position for '{self.name}' at {timestamp}.")
 
+        config_update()
+        print("config_update() done!")
+        config_load()
+        print("config_load() done!")
+
     def load(self):
         entries = self.positions.get(self.name)
         if entries:
@@ -137,13 +164,14 @@ class Beamstop:
             print(f"No saved position found for '{self.name}'.")
 
     def show(self):
+        self._sync()
         print(f"Beamstop '{self.name}':")
         print(f"  bsx = {self.bsx}")
         print(f"  bsy = {self.bsy}")
         print(f"  bsphi = {self.bsphi}")
 
     @staticmethod
-    def clear_cfg(config_file='beamstop_config.cfg'):
+    def clear_cfg(config_file='/home/xf11bm/.ipython/profile_collection/startup/beamstop_config.cfg'):
         path = Path(config_file)
         if path.exists():
             with open(path, 'r') as f:
