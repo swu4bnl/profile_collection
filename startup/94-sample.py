@@ -1931,55 +1931,55 @@ class Sample_Generic(CoordinateSystem):
                 if verbosity >= 1:
                     print("WARNING: Didn't recognize detector '{}'.".format(detector.name))
 
-        if verbosity >= 2:
-            status = 0
-            while (status == 0) and (time.time() - start_time) < (max_exposure_time + 20):
-                percentage = 100 * (time.time() - start_time) / max_exposure_time
-                print(
-                    "Exposing {:6.2f} s  ({:3.0f}%)      \r".format((time.time() - start_time), percentage),
-                    end="",
-                )
+        # if verbosity >= 2:
+        #     status = 0
+        #     while (status == 0) and (time.time() - start_time) < (max_exposure_time + 20):
+        #         percentage = 100 * (time.time() - start_time) / max_exposure_time
+        #         print(
+        #             "Exposing {:6.2f} s  ({:3.0f}%)      \r".format((time.time() - start_time), percentage),
+        #             end="",
+        #         )
 
-                time.sleep(poling_period)
+        #         time.sleep(poling_period)
 
-                status = 1
-                for detector in get_beamline().detector:
-                    if detector.cam.acquire.get() == 1:
-                        status *= 0
+        #         status = 1
+        #         for detector in get_beamline().detector:
+        #             if detector.cam.acquire.get() == 1:
+        #                 status *= 0
 
             # print('counting .... percentage = {}'.format(percentage))
 
         else:
             time.sleep(max_exposure_time)
 
-        # special solution for 2022_1/TKoga2
-        if verbosity >= 5:
-            print("verbosity = {}.".format(verbosity))
-            pct_threshold = 90
-            while percentage < pct_threshold:
-                print("sth is wrong .... percentage = {} < {}%".format(percentage, pct_threshold))
-                start_time = time.time()
-                uids = RE(count(get_beamline().detector), **md)
-                # yield from (count(get_beamline().detector), **md)
+        # # special solution for 2022_1/TKoga2
+        # if verbosity >= 5:
+        #     print("verbosity = {}.".format(verbosity))
+        #     pct_threshold = 90
+        #     while percentage < pct_threshold:
+        #         print("sth is wrong .... percentage = {} < {}%".format(percentage, pct_threshold))
+        #         start_time = time.time()
+        #         uids = RE(count(get_beamline().detector), **md)
+        #         # yield from (count(get_beamline().detector), **md)
 
-                # get_beamline().beam.off()
-                # print('shutter is off')
+        #         # get_beamline().beam.off()
+        #         # print('shutter is off')
 
-                # Wait for detectors to be ready
-                max_exposure_time = 0.1
-                for detector in get_beamline().detector:
-                    if detector.name == "pilatus300k-1":
-                        current_exposure_time = detector.cam.acquire_time.get()
-                        max_exposure_time = max(max_exposure_time, current_exposure_time)
-                    elif detector.name == "pilatus2m-1":
-                        current_exposure_time = detector.cam.acquire_time.get()
-                        max_exposure_time = max(max_exposure_time, current_exposure_time)
-                    elif detector.name == "pilatus800k-1" or detector.name == "pilatus800k-2":
-                        current_exposure_time = detector.cam.acquire_time.get()
-                        max_exposure_time = max(max_exposure_time, current_exposure_time)
+        #         # Wait for detectors to be ready
+        #         max_exposure_time = 0.1
+        #         for detector in get_beamline().detector:
+        #             if detector.name == "pilatus300k-1":
+        #                 current_exposure_time = detector.cam.acquire_time.get()
+        #                 max_exposure_time = max(max_exposure_time, current_exposure_time)
+        #             elif detector.name == "pilatus2m-1":
+        #                 current_exposure_time = detector.cam.acquire_time.get()
+        #                 max_exposure_time = max(max_exposure_time, current_exposure_time)
+        #             elif detector.name == "pilatus800k-1" or detector.name == "pilatus800k-2":
+        #                 current_exposure_time = detector.cam.acquire_time.get()
+        #                 max_exposure_time = max(max_exposure_time, current_exposure_time)
 
-                percentage = 100 * (time.time() - start_time) / max_exposure_time
-                print("After re-exposing .... percentage = {} ".format(percentage))
+        #         percentage = 100 * (time.time() - start_time) / max_exposure_time
+        #         print("After re-exposing .... percentage = {} ".format(percentage))
 
                 # if detector.name is "pilatus300k-1":
                 #     if caget('XF:11BMB-ES{Det:SAXS}:cam1:Acquire')==1:
@@ -2144,6 +2144,10 @@ class Sample_Generic(CoordinateSystem):
             elif detector.name == "pilatus800k-1":
                 subdir = "/waxs/raw/"
                 detname = "waxs"
+            elif 'webcam' in detector.name:
+                subdir = "/camera/"
+                detname = detector.name
+
             else:
                 if verbosity >= 1:
                     print("WARNING: Can't do file handling for detector '{}'.".format(detector.name))
@@ -2169,6 +2173,8 @@ class Sample_Generic(CoordinateSystem):
             savename = md["filename"]
             # link_name = '{}/{}{}_{:04d}_maxs.tiff'.format(RE.md['experiment_alias_directory'], subdir, savename, RE.md['scan_id']-1)
             link_name = "{}/{}{}_000000_{}.tiff".format(RE.md["experiment_alias_directory"], subdir, savename, detname).replace('//','/')
+            # if 'camera' in detector.name:
+            #     link_name = "{}/{}{}_000000_{}.png".format(RE.md["experiment_alias_directory"], subdir, savename, detname).replace('//','/')
             print(f"  A symlink will be created at: {proposal_path()}experiments/{link_name}")
             
             # if os.path.isfile(link_name):
