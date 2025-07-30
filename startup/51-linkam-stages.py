@@ -41,22 +41,34 @@ class LinkamThermal(Device):
     lnp_speed_set = Cpt(EpicsSignal, "LNP_SPEED:SET")
 
     def on(self):
-        return self.cmd.put(1)
+        while self.cmd.get() != 1:
+            time.sleep(0.2)
+            self.cmd.put(1)
+        return self.cmd.get()
 
     def _on(self):
         yield from bps.mv(self.cmd, 1)
 
     def off(self):
-        return self.cmd.put(0)
+        while self.cmd.get() != 0:
+            time.sleep(0.2)
+            self.cmd.put(0)
+        return self.cmd.get()
 
     def _off(self):
         yield from bps.mv(self.cmd, 0)
 
     def setTemperature(self, temperature):
-        return self.temperature_setpoint.put(temperature)
+        while self.temperature_setpoint.get() != temperature:
+            time.sleep(0.2)
+            self.temperature_setpoint.put(temperature)
+        return self.temperature_setpoint.get()
 
     def setTemperatureRate(self, temperature_rate):
-        return self.temperature_rate_setpoint.put(temperature_rate)
+        while self.temperature_rate_setpoint.get() != temperature_rate:
+            time.sleep(0.2)
+            self.temperature_rate_setpoint.put(temperature_rate)
+        return self.temperature_rate_setpoint.get()
 
     def temperature(self):
         return self.temperature_current.get()
