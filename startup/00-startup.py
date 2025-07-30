@@ -58,7 +58,7 @@ nslsii.configure_base(get_ipython().user_ns,
 print("Initializing Tiled reading client...\nMake sure you check for duo push.")
 tiled_reading_client = cat = from_profile("nsls2", username=None)["cms"]["raw"]
 
-# db = Broker(tiled_reading_client)
+db = Broker(tiled_reading_client)  # Keep for backcompatibility with older code that uses databroker
 
 from pyOlog.ophyd_tools import *
 

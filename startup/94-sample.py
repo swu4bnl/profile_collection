@@ -4048,7 +4048,7 @@ class Sample_Generic(CoordinateSystem):
         # beam.absorber_transmission_list = [1, 0.041, 0.0017425, 0.00007301075, 0.00000287662355, 0.000000122831826, 0.00000000513437]
         scan_id = h.start["scan_id"]
         I_bim5 = 0 # beam intensity from bim5
-        I0 = dtable.pilatus2M_stats4_total
+        I0 = dtable['pilatus2m-1_stats4_total']
         filename = h.start["sample_name"]
         exposure_time = h.start["sample_exposure_time"]
 
