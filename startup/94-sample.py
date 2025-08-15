@@ -1887,6 +1887,9 @@ class Sample_Generic(CoordinateSystem):
         md["beam_int_bim3"] = beam.bim3.flux(verbosity=0)
         md["beam_int_bim4"] = beam.bim4.flux(verbosity=0)
         md["beam_int_bim5"] = beam.bim5.flux(verbosity=0)
+
+        if 'temperature_Linkam' in self.naming_scheme:
+            md["temperature_Linkam"] = LThermal.temperature()
         # md['trigger_time'] = self.clock()
         # md.update(md_current)
 
