@@ -145,4 +145,6 @@ doc/source/_generated_images/*
 *.wav
 
 # Users scripts
-users/
+users/# pixi environments
+.pixi/*
+!.pixi/config.toml
