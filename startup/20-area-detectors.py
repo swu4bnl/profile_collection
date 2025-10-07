@@ -29,9 +29,11 @@ from ophyd.areadetector.filestore_mixins import FileStoreHDF5IterativeWrite
 from ophyd.areadetector.plugins import HDF5Plugin #,register_plugin,PluginBase
 
 import time
+import asyncio
 
 
 Pilatus2M_on = True
+# Pilatus2M_on = 'h5'  # 'h5' for h5 mode
 Camera_on=True
 Pilatus300_on = False
 # ONLY 1 Pilatus800 will be turned on at the same time. changed by RL, 20210831
@@ -316,7 +318,7 @@ class Pilatus2MV33(SingleTriggerV33, PilatusDetector):
     def setExposureNumber(self, exposure_number, verbosity=3):
         yield from mv(self.cam.num_images, exposure_number)
 
-class Pilatus2MV33_h5(SingleTriggerV33, PilatusDetector):
+class PilatusV33_h5(SingleTriggerV33, PilatusDetector):
     cam = Cpt(PilatusDetectorCamV33, "cam1:")
     image = Cpt(ImagePlugin, "image1:")
     stats1 = Cpt(StatsPluginV33, "Stats1:")
@@ -379,6 +381,68 @@ class Pilatus2MV33_h5(SingleTriggerV33, PilatusDetector):
             raise error
         return super().stage(*args, **kwargs)
 
+class Pilatus800V33_h5(SingleTriggerV33, PilatusDetector):
+    cam = Cpt(PilatusDetectorCamV33, "cam1:")
+    image = Cpt(ImagePlugin, "image1:")
+    stats1 = Cpt(StatsPluginV33, "Stats1:")
+    stats2 = Cpt(StatsPluginV33, "Stats2:")
+    stats3 = Cpt(StatsPluginV33, "Stats3:")
+    stats4 = Cpt(StatsPluginV33, "Stats4:")
+    stats5 = Cpt(StatsPluginV33, "Stats5:")
+    roi1 = Cpt(ROIPlugin, "ROI1:")
+    roi2 = Cpt(ROIPlugin, "ROI2:")
+    roi3 = Cpt(ROIPlugin, "ROI3:")
+    roi4 = Cpt(ROIPlugin, "ROI4:")
+    proc1 = Cpt(ProcessPlugin, "Proc1:")
+    trans1 = Cpt(TransformPlugin, "Trans1:")
+
+    h5 = Cpt(
+        HDF5PluginWithFileStore,
+        suffix="HDF1:",
+        write_path_template = "",
+    )
+
+    def setExposureTime(self, exposure_time, verbosity=3):
+        yield from mv(
+            self.cam.acquire_time,
+            exposure_time,
+            # self.cam.acquire_period,
+            # exposure_time + 0.1,
+        )
+        # self.cam.acquire_time.put(exposure_time)
+        # self.cam.acquire_period.put(exposure_time+.1)
+        # caput('XF:11BMB-ES{Det:PIL2M}:cam1:AcquireTime', exposure_time)
+        # caput('XF:11BMB-ES{Det:PIL2M}:cam1:AcquirePeriod', exposure_time+0.1)
+
+    def setExposurePeriod(self, exposure_period, verbosity=3):
+        yield from mv(self.cam.acquire_period, exposure_period)
+
+    def setExposureNumber(self, exposure_number, verbosity=3):
+        yield from mv(self.cam.num_images, exposure_number)
+
+    def stage(self):
+        self.h5.write_path_template = assets_path() + f'{self.name}/%Y/%m/%d/'
+        self.h5.read_path_template = assets_path() + f'{self.name}/%Y/%m/%d/'
+        self.h5.reg_root = assets_path() + f'{self.name}'
+
+        # wrap the staging process in a retry loop
+        error = None
+        for retry in range(5):
+            try:
+                return super().stage()
+            except TimeoutError as err:
+                # Staging failed becasue the IOC did not answer
+                # some request in a resonable time
+                # Stash the exception as the variable 'error'
+                error = err
+            else:
+                # Staging worked. Stop retyring.
+                break
+        else:
+            # We exhausted all retires and none worked.
+            # Raise the error captured above to produce a useful error message.
+            raise error
+        return super().stage(*args, **kwargs)
 
 if Camera_on==True:
 
@@ -395,6 +459,7 @@ if Camera_on==True:
     # off-axis camera
     fs6 = StandardProsilicaV33("XF:11BMB-BI{OffAxis-Cam:1}", name="webcam-6")
     # on-axis camera
+    fs8 = StandardProsilicaV33("XF:11BMB-BI{Cam:08}", name="webcam-8")
     fs9 = StandardProsilicaV33("XF:11BMB-BI{OnAxis-Cam:2}", name="webcam-9")
 
     all_standard_pros = [fs2, fs3, fs4]
@@ -453,7 +518,7 @@ if Camera_on==True:
     #     item_check = getattr(fs1.cam, item)
     #     item_check.kind = "omitted"
 
-    all_standard_pros = [fs1, fs2, fs3, fs4, fs5, fs6, fs9]
+    all_standard_pros = [fs1, fs2, fs3, fs4, fs5, fs6, fs8, fs9]
     for camera in all_standard_pros:
         camera.read_attrs = ['stats1', 'stats2', 'stats3', 'stats4', 'stats5']
         # camera.tiff.read_attrs = []  # leaving just the 'image'
@@ -669,52 +734,130 @@ if Pilatus2M_on == True:
         item_check = getattr(pilatus2M.cam, item)
         item_check.kind = "omitted"
 
-elif Pilatus2M_on == 'h5': 
-
-    pilatus2M = Pilatus2MV33_h5("XF:11BMB-ES{Det:PIL2M}:", name="pilatus2m-1")
-    pilatus2M.h5.read_attrs = []
-
-    STATS_NAMES2M = ["stats1", "stats2", "stats3", "stats4"]
-    pilatus2M.read_attrs = ["h5"] + STATS_NAMES2M
-    for stats_name in STATS_NAMES2M:
-        stats_plugin = getattr(pilatus2M, stats_name)
-        stats_plugin.read_attrs = ["total"]
-    pilatus2M.cam.ensure_nonblocking()
-    pilatus2M.h5.ensure_blocking()
-    pilatus2M.stats3.total.kind = "hinted"
-    pilatus2M.stats4.total.kind = "hinted"
-
-    for item in pilatus2M.stats1.configuration_attrs:
-        item_check = getattr(pilatus2M.stats1, item)
-        item_check.kind = "omitted"
-
-    for item in pilatus2M.stats2.configuration_attrs:
-        item_check = getattr(pilatus2M.stats2, item)
-        item_check.kind = "omitted"
-
-    for item in pilatus2M.stats3.configuration_attrs:
-        item_check = getattr(pilatus2M.stats3, item)
-        item_check.kind = "omitted"
-
-    for item in pilatus2M.stats4.configuration_attrs:
-        item_check = getattr(pilatus2M.stats4, item)
-        item_check.kind = "omitted"
-
-    for item in pilatus2M.stats5.configuration_attrs:
-        item_check = getattr(pilatus2M.stats5, item)
-        item_check.kind = "omitted"
-
-    # for item in pilatus2M.tiff.configuration_attrs:
-    #     item_check = getattr(pilatus2M.tiff, item)
-    #     item_check.kind = "omitted"
-
-    for item in pilatus2M.cam.configuration_attrs:
-        item_check = getattr(pilatus2M.cam, item)
-        item_check.kind = "omitted"
 else:
     pilatus2M = "Pil2MISNOTWORKING"
 
+if Pilatus2M_on == True:
 
+    pilatus2M_h5 = PilatusV33_h5("XF:11BMB-ES{Det:PIL2M}:", name="pilatus2m-1")
+    pilatus2M_h5.h5.read_attrs = []
+
+    STATS_NAMES2M = ["stats1", "stats2", "stats3", "stats4"]
+    pilatus2M_h5.read_attrs = ["h5"] + STATS_NAMES2M
+    for stats_name in STATS_NAMES2M:
+        stats_plugin = getattr(pilatus2M_h5, stats_name)
+        stats_plugin.read_attrs = ["total"]
+    pilatus2M_h5.cam.ensure_nonblocking()
+    pilatus2M_h5.h5.ensure_blocking()
+    pilatus2M_h5.stats3.total.kind = "hinted"
+    pilatus2M_h5.stats4.total.kind = "hinted"
+
+    for item in pilatus2M_h5.stats1.configuration_attrs:
+        item_check = getattr(pilatus2M_h5.stats1, item)
+        item_check.kind = "omitted"
+
+    for item in pilatus2M_h5.stats2.configuration_attrs:
+        item_check = getattr(pilatus2M_h5.stats2, item)
+        item_check.kind = "omitted"
+
+    for item in pilatus2M_h5.stats3.configuration_attrs:
+        item_check = getattr(pilatus2M_h5.stats3, item)
+        item_check.kind = "omitted"
+
+    for item in pilatus2M_h5.stats4.configuration_attrs:
+        item_check = getattr(pilatus2M_h5.stats4, item)
+        item_check.kind = "omitted"
+
+    for item in pilatus2M_h5.stats5.configuration_attrs:
+        item_check = getattr(pilatus2M_h5.stats5, item)
+        item_check.kind = "omitted"
+
+    # for item in pilatus2M_h5.tiff.configuration_attrs:
+    #     item_check = getattr(pilatus2M_h5.tiff, item)
+    #     item_check.kind = "omitted"
+
+    for item in pilatus2M_h5.cam.configuration_attrs:
+        item_check = getattr(pilatus2M_h5.cam, item)
+        item_check.kind = "omitted"
+
+if Pilatus800_on == True:
+    pilatus800_h5 = PilatusV33_h5("XF:11BMB-ES{Det:PIL800K}:", name="pilatus800k-1")
+    pilatus800_h5.h5.read_attrs = []
+
+    STATS_NAMES2M = ["stats1", "stats2", "stats3", "stats4"]
+    pilatus800_h5.read_attrs = ["h5"] + STATS_NAMES2M
+
+    for stats_name in STATS_NAMES:
+        stats_plugin = getattr(pilatus800_h5, stats_name)
+        stats_plugin.read_attrs = ["total"]
+
+    for item in pilatus800_h5.stats1.configuration_attrs:
+        item_check = getattr(pilatus800_h5.stats1, item)
+        item_check.kind = "omitted"
+
+    for item in pilatus800_h5.stats2.configuration_attrs:
+        item_check = getattr(pilatus800_h5.stats2, item)
+        item_check.kind = "omitted"
+
+    for item in pilatus800_h5.stats3.configuration_attrs:
+        item_check = getattr(pilatus800_h5.stats3, item)
+        item_check.kind = "omitted"
+
+    for item in pilatus800_h5.stats4.configuration_attrs:
+        item_check = getattr(pilatus800_h5.stats4, item)
+        item_check.kind = "omitted"
+
+    for item in pilatus800_h5.stats5.configuration_attrs:
+        item_check = getattr(pilatus800_h5.stats5, item)
+        item_check.kind = "omitted"
+
+    # for item in pilatus800_h5.tiff.configuration_attrs:
+    #     item_check = getattr(pilatus800_h5.tiff, item)
+    #     item_check.kind = "omitted"
+
+    for item in pilatus800_h5.cam.configuration_attrs:
+        item_check = getattr(pilatus800_h5.cam, item)
+        item_check.kind = "omitted"
+
+
+if Pilatus800_2_on == True:
+    pilatus8002_h5 = PilatusV33_h5("XF:11BMB-ES{Det:PIL800K2}:", name="pilatus800k-2")
+    pilatus8002_h5.h5.read_attrs = []
+
+    STATS_NAMES2M = ["stats1", "stats2", "stats3", "stats4"]
+    pilatus8002_h5.read_attrs = ["h5"] + STATS_NAMES2M
+
+    for stats_name in STATS_NAMES:
+        stats_plugin = getattr(pilatus8002_h5, stats_name)
+        stats_plugin.read_attrs = ["total"]
+
+    for item in pilatus8002_h5.stats1.configuration_attrs:
+        item_check = getattr(pilatus8002_h5.stats1, item)
+        item_check.kind = "omitted"
+
+    for item in pilatus8002_h5.stats2.configuration_attrs:
+        item_check = getattr(pilatus8002_h5.stats2, item)
+        item_check.kind = "omitted"
+
+    for item in pilatus8002_h5.stats3.configuration_attrs:
+        item_check = getattr(pilatus8002_h5.stats3, item)
+        item_check.kind = "omitted"
+
+    for item in pilatus8002_h5.stats4.configuration_attrs:
+        item_check = getattr(pilatus8002_h5.stats4, item)
+        item_check.kind = "omitted"
+
+    for item in pilatus8002_h5.stats5.configuration_attrs:
+        item_check = getattr(pilatus8002_h5.stats5, item)
+        item_check.kind = "omitted"
+
+    # for item in pilatus8002_h5.tiff.configuration_attrs:
+    #     item_check = getattr(pilatus8002_h5.tiff, item)
+    #     item_check.kind = "omitted"
+
+    for item in pilatus8002_h5.cam.configuration_attrs:
+        item_check = getattr(pilatus8002_h5.cam, item)
+        item_check.kind = "omitted"
 # define the current pilatus detector: pilatus_name and _Epicsname, instead of
 # pilatus300 or pilatus2M
 # pilatus_name = pilatus800
@@ -796,4 +939,4 @@ def count_no_save_plan(det):
 
 
 
-print(f'Loading {__file__}DONEEEEEEEEEEEEEEEEEEEEEEEEEEEE')
+print(f'Loading {__file__}')

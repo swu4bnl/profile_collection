@@ -3043,7 +3043,7 @@ class CMS_Beamline(Beamline):
 
         return md_current
 
-    def setMetadata(self, verbosity=3):
+    def _setMetadata(self, verbosity=3):
         """Guides the user through setting some of the required and recommended
         meta-data fields."""
 
@@ -3079,7 +3079,7 @@ class CMS_Beamline(Beamline):
             ["experiment_SAF_number", "SAF number"],
             ["experiment_group", "User group (e.g. PI)"],
             ["experiment_user", "The specific user/person running the experiment"],
-            ["experiment_project", "Project name/code"],
+            # ["experiment_project", "Project name/code"],
             ["experiment_alias_directory", "Alias directory"],
             [
                 "experiment_type",
@@ -3130,7 +3130,7 @@ class CMS_Beamline(Beamline):
                 "/n The folder ::: {} ::: has been made for users. /n".format(RE.md["experiment_alias_directory"])
             )
 
-    def setMetadata_new(self, verbosity=3):
+    def setMetadata(self, verbosity=3):
         """Guides the user through setting some of the required and recommended
         meta-data fields."""
 
@@ -3162,13 +3162,13 @@ class CMS_Beamline(Beamline):
         # Ask the user some questions
 
         questions = [
-            ["experiment_proposal_number", "Proposal number"],
+            # ["experiment_proposal_number", "Proposal number"],
             ["experiment_SAF_number", "SAF number"],
             ["experiment_group", "User group (e.g. PI)"],
             ["experiment_user", "The specific user/person running the experiment"],
-            ["experiment_project", "Project name/code"],
-            ["userpy_alias_directory", "Alias directory"],
-            ["experiment_alias_directory", "Alias directory"],
+            # ["experiment_project", "Project name/code"],
+            ["userpy_alias_directory", "UserPy Alias directory"],
+            ["experiment_alias_directory", "Experiment Alias directory"],
             [
                 "experiment_type",
                 "Type of experiments/measurements (SAXS, GIWAXS, etc.)",
@@ -3201,6 +3201,10 @@ class CMS_Beamline(Beamline):
         print('user.py will be saved in folder: {}'.format(RE.md["userpy_alias_directory"]))
         print('data will be saved in folder: {}'.format(RE.md["experiment_alias_directory"]))
         print('redo cms.setMeadata() if any folder is wrong! ')
+
+        # sam=Sample('test')
+        # detSelect(fs6)
+        # sam.measure(.1)
 
         # if os.path.exists(RE.md["experiment_alias_directory"]):
         #     print("/n The folder has existed. Please change folder name if necessary./n")

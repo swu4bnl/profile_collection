@@ -1,5 +1,8 @@
 # EPICS interface developed by Jakub
 # Bsui code adopted from BMM/Bruce Ravel and modified by Ruipeng Li
+# 2025-08-19: Modified by Siyu Wu
+
+import pandas as pd
 
 
 class LinkamThermal(Device):
