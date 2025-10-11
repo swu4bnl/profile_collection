@@ -1782,9 +1782,9 @@ class Sample_Generic(CoordinateSystem):
 
         # md_current['detector_sequence_ID'] = caget('XF:11BMB-ES{Det:SAXS}:cam1:FileNumber_RBV')
         # md_current['detector_sequence_ID'] = caget('XF:11BMB-ES{}:cam1:FileNumber_RBV'.format(pilatus_Epicsname))
-        if get_beamline().detector[0].name == "pilatus300":
+        if get_beamline().detector[0].name == "pilatus300k-1":
             md_current["detector_sequence_ID"] = caget("XF:11BMB-ES{Det:SAXS}:cam1:FileNumber_RBV")
-        elif get_beamline().detector[0].name == "pilatus2M":
+        elif get_beamline().detector[0].name == "pilatus2m-1":
             md_current["detector_sequence_ID"] = caget("XF:11BMB-ES{Det:PIL2M}:cam1:FileNumber_RBV")
 
         md_current.update(get_beamline().get_md())
@@ -1814,10 +1814,10 @@ class Sample_Generic(CoordinateSystem):
             # caput('XF:11BMB-ES{}:cam1:AcquireTime'.format(pilatus_Epicsname), exposure_time)
             # caput('XF:11BMB-ES{}:cam1:AcquirePeriod'.format(pilatus_Epicsname), exposure_time+0.1)
 
-            if get_beamline().detector[0].name == "pilatus300":
+            if get_beamline().detector[0].name == "pilatus300k-1":
                 caput("XF:11BMB-ES{Det:SAXS}:cam1:AcquireTime", exposure_time)
                 caput("XF:11BMB-ES{Det:SAXS}:cam1:AcquirePeriod", exposure_time + 0.1)
-            elif get_beamline().detector[0].name == "pilatus2M":
+            elif get_beamline().detector[0].name == "pilatus2m-1":
                 caput("XF:11BMB-ES{Det:PIL2M}:cam1:AcquireTime", exposure_time)
                 caput("XF:11BMB-ES{Det:PIL2M}:cam1:AcquirePeriod", exposure_time + 0.1)
 
@@ -1861,10 +1861,14 @@ class Sample_Generic(CoordinateSystem):
                 if (
                     exposure_time != detector.cam.acquire_time.get()
                 ):  # caget('XF:11BMB-ES{Det:PIL2M}:cam1:AcquireTime'):
-                    RE(detector.setExposureTime(exposure_time, verbosity=verbosity))
-                # if detector.name is 'pilatus800' and exposure_time != detector.cam.acquire_time.get():  #caget('XF:11BMB-ES{Det:PIL2M}:cam1:AcquireTime'):
+                    # RE(detector.setExposureTime(exposure_time, verbosity=verbosity))
+                    detector.cam.acquire_time.set(exposure_time)
+                if detector.cam.num_images.get() != 1:
+                    detector.cam.num_images.set(1)
+
+                # if detector.name is "pilatus800k-1" and exposure_time != detector.cam.acquire_time.get():  #caget('XF:11BMB-ES{Det:PIL2M}:cam1:AcquireTime'):
                 # RE(detector.setExposureTime(exposure_time, verbosity=verbosity))
-                # if detector.name is 'pilatus300' and exposure_time != detector.cam.acquire_time.get():
+                # if detector.name is "pilatus300k-1" and exposure_time != detector.cam.acquire_time.get():
                 # detector.setExposureTime(exposure_time, verbosity=verbosity)
                 ##extra wait time when changing the exposure time.
                 ##time.sleep(2)
@@ -1887,12 +1891,15 @@ class Sample_Generic(CoordinateSystem):
         md["beam_int_bim3"] = beam.bim3.flux(verbosity=0)
         md["beam_int_bim4"] = beam.bim4.flux(verbosity=0)
         md["beam_int_bim5"] = beam.bim5.flux(verbosity=0)
+
+        if 'temperature_Linkam' in self.naming_scheme:
+            md["temperature_Linkam"] = LThermal.temperature()
         # md['trigger_time'] = self.clock()
         # md.update(md_current)
 
         # uids = RE(count(get_beamline().detector, 1), **md)
         uids = RE(count(get_beamline().detector), **md)
-        # yield from (count(get_beamline().detector), **md)
+        # yield from RE(count(get_beamline().detector), **md)
 
         # get_beamline().beam.off()
         # print('shutter is off')
@@ -1900,23 +1907,28 @@ class Sample_Generic(CoordinateSystem):
         # Wait for detectors to be ready
         max_exposure_time = 0.1
         for detector in get_beamline().detector:
-            if detector.name == "pilatus300":
+            # print('here in expose:', detector.name)
+            # if detector.name == "pilatus300k-1":
+            #     current_exposure_time = detector.cam.acquire_time.get()
+            #     max_exposure_time = max(max_exposure_time, current_exposure_time)
+            if detector.name == "pilatus2m-1":
                 current_exposure_time = detector.cam.acquire_time.get()
                 max_exposure_time = max(max_exposure_time, current_exposure_time)
-            elif detector.name == "pilatus2M":
-                current_exposure_time = detector.cam.acquire_time.get()
-                max_exposure_time = max(max_exposure_time, current_exposure_time)
-            elif detector.name == "pilatus800" or detector.name == "pilatus8002":
+            elif detector.name == "pilatus800k-1" or detector.name == "pilatus800k-2":
                 current_exposure_time = detector.cam.acquire_time.get()
                 max_exposure_time = max(max_exposure_time, current_exposure_time)
 
-            # if detector.name is 'pilatus300':
+            elif 'webcam' in detector.name:
+                current_exposure_time = detector.cam.acquire_time.get()
+                max_exposure_time = max(max_exposure_time, current_exposure_time)
+
+            # if detector.name is "pilatus300k-1":
             #     current_exposure_time = caget('XF:11BMB-ES{Det:SAXS}:cam1:AcquireTime')
             #     max_exposure_time = max(max_exposure_time, current_exposure_time)
-            # elif detector.name is 'pilatus2M':
+            # elif detector.name is "pilatus2m-1":
             #     current_exposure_time = caget('XF:11BMB-ES{Det:PIL2M}:cam1:AcquireTime')
             #     max_exposure_time = max(max_exposure_time, current_exposure_time)
-            # elif detector.name is 'pilatus800':
+            # elif detector.name is "pilatus800k-1":
             #     current_exposure_time = caget('XF:11BMB-ES{Det:PIL800K}:cam1:AcquireTime')
             #     max_exposure_time = max(max_exposure_time, current_exposure_time)
             # elif detector.name is 'PhotonicSciences_CMS':
@@ -1941,53 +1953,15 @@ class Sample_Generic(CoordinateSystem):
                 for detector in get_beamline().detector:
                     if detector.cam.acquire.get() == 1:
                         status *= 0
+                print(' ')
 
-            # print('counting .... percentage = {}'.format(percentage))
+        get_beamline().beam.off()
 
-        else:
-            time.sleep(max_exposure_time)
+        print(
+            "Exposing {:6.2f} s ".format((time.time() - start_time))
+        )
 
-        # special solution for 2022_1/TKoga2
-        if verbosity >= 5:
-            print("verbosity = {}.".format(verbosity))
-            pct_threshold = 90
-            while percentage < pct_threshold:
-                print("sth is wrong .... percentage = {} < {}%".format(percentage, pct_threshold))
-                start_time = time.time()
-                uids = RE(count(get_beamline().detector), **md)
-                # yield from (count(get_beamline().detector), **md)
 
-                # get_beamline().beam.off()
-                # print('shutter is off')
-
-                # Wait for detectors to be ready
-                max_exposure_time = 0.1
-                for detector in get_beamline().detector:
-                    if detector.name == "pilatus300":
-                        current_exposure_time = detector.cam.acquire_time.get()
-                        max_exposure_time = max(max_exposure_time, current_exposure_time)
-                    elif detector.name == "pilatus2M":
-                        current_exposure_time = detector.cam.acquire_time.get()
-                        max_exposure_time = max(max_exposure_time, current_exposure_time)
-                    elif detector.name == "pilatus800" or detector.name == "pilatus8002":
-                        current_exposure_time = detector.cam.acquire_time.get()
-                        max_exposure_time = max(max_exposure_time, current_exposure_time)
-
-                percentage = 100 * (time.time() - start_time) / max_exposure_time
-                print("After re-exposing .... percentage = {} ".format(percentage))
-
-                # if detector.name is 'pilatus300':
-                #     if caget('XF:11BMB-ES{Det:SAXS}:cam1:Acquire')==1:
-                #         status *= 0
-                # elif detector.name is 'pilatus2M':
-                #     if caget('XF:11BMB-ES{Det:PIL2M}:cam1:Acquire')==1:
-                #         status *= 0
-                # elif detector.name is 'pilatus800':
-                #     if caget('XF:11BMB-ES{Det:PIL800K}:cam1:Acquire')==1:
-                #         status *= 0
-                # elif detector.name is 'PhotonicSciences_CMS':
-                # if not detector.detector_is_ready(verbosity=0):
-                # status *= 0
 
         # if verbosity>=3 and caget('XF:11BMB-ES{Det:PIL800K}:cam1:Acquire')==1:
         #     print('Warning: Detector pilatus300 still not done acquiring.')
@@ -1998,30 +1972,7 @@ class Sample_Generic(CoordinateSystem):
         # if verbosity>=3 and caget('XF:11BMB-ES{Det:PIL2M}:cam1:Acquire')==1:
         #     print('Warning: Detector pilatus2M still not done acquiring.')
 
-        get_beamline().beam.off()
 
-        # save the percentage information
-        # if verbosity>=5:
-        #     folder = '/nsls2/data/cms/legacy/xf11bm/data/2022_1/TKoga2/'
-        #     # filename = ''
-
-        #     current_data = {'a_sample': self.name,
-        #                     'b_exposure_time': detector.cam.acquire_time.get(),
-        #                     'c_exposure_percentage': percentage,
-        #                     'd_align_time': md['filename']
-        #                     }
-
-        #     temp_data = pds.DataFrame([current_data])
-
-        #     # INT_FILENAME='{}/data/{}.csv'.format(os.path.dirname(__file__) , 'alignment_results.csv')
-        #     INT_FILENAME='{}/data/{}.csv'.format(folder , 'exposure_info.csv')
-
-        #     if os.path.isfile(INT_FILENAME):
-        #         output_data = pds.read_csv(INT_FILENAME, index_col=0)
-        #         output_data = output_data.append(temp_data, ignore_index=True)
-        #         output_data.to_csv(INT_FILENAME)
-        #     else:
-        #         temp_data.to_csv(INT_FILENAME)
 
         if handlefile == True:
             for detector in get_beamline().detector:
@@ -2047,9 +1998,9 @@ class Sample_Generic(CoordinateSystem):
                     exposure_time != detector.cam.acquire_time.get()
                 ):  # caget('XF:11BMB-ES{Det:PIL2M}:cam1:AcquireTime'):
                     RE(detector.setExposureTime(exposure_time, verbosity=verbosity))
-                # if detector.name is 'pilatus800' and exposure_time != detector.cam.acquire_time.get():  #caget('XF:11BMB-ES{Det:PIL2M}:cam1:AcquireTime'):
+                # if detector.name is "pilatus800k-1" and exposure_time != detector.cam.acquire_time.get():  #caget('XF:11BMB-ES{Det:PIL2M}:cam1:AcquireTime'):
                 # RE(detector.setExposureTime(exposure_time, verbosity=verbosity))
-                # if detector.name is 'pilatus300' and exposure_time != detector.cam.acquire_time.get():
+                # if detector.name is "pilatus300k-1" and exposure_time != detector.cam.acquire_time.get():
                 # detector.setExposureTime(exposure_time, verbosity=verbosity)
                 ##extra wait time when changing the exposure time.
                 ##time.sleep(2)
@@ -2089,13 +2040,13 @@ class Sample_Generic(CoordinateSystem):
         # Wait for detectors to be ready
         max_exposure_time = 0.1
         for detector in get_beamline().detector:
-            if detector.name == "pilatus300":
+            if detector.name == "pilatus300k-1":
                 current_exposure_time = caget("XF:11BMB-ES{Det:SAXS}:cam1:AcquireTime")
                 max_exposure_time = max(max_exposure_time, current_exposure_time)
-            elif detector.name == "pilatus2M":
+            elif detector.name == "pilatus2m-1":
                 current_exposure_time = caget("XF:11BMB-ES{Det:PIL2M}:cam1:AcquireTime")
                 max_exposure_time = max(max_exposure_time, current_exposure_time)
-            elif detector.name == "pilatus800":
+            elif detector.name == "pilatus800k-1":
                 current_exposure_time = caget("XF:11BMB-ES{Det:PIL800K}:cam1:AcquireTime")
                 max_exposure_time = max(max_exposure_time, current_exposure_time)
             # elif detector.name is 'PhotonicSciences_CMS':
@@ -2118,13 +2069,13 @@ class Sample_Generic(CoordinateSystem):
 
                 status = 1
                 for detector in get_beamline().detector:
-                    if detector.name == "pilatus300":
+                    if detector.name == "pilatus300k-1":
                         if caget("XF:11BMB-ES{Det:SAXS}:cam1:Acquire") == 1:
                             status *= 0
-                    elif detector.name == "pilatus2M":
+                    elif detector.name == "pilatus2m-1":
                         if caget("XF:11BMB-ES{Det:PIL2M}:cam1:Acquire") == 1:
                             status *= 0
-                    elif detector.name == "pilatus800":
+                    elif detector.name == "pilatus800k-1":
                         if caget("XF:11BMB-ES{Det:PIL800K}:cam1:Acquire") == 1:
                             status *= 0
                     # elif detector.name is 'PhotonicSciences_CMS':
@@ -2153,24 +2104,25 @@ class Sample_Generic(CoordinateSystem):
     def handle_file(self, detector, extra=None, verbosity=3, subdirs=True, linksave=True, **md):
         subdir = ""
         if subdirs:
-            if detector.name == "pilatus300" or detector.name == "pilatus8002":
+            if detector.name == "pilatus300k-1" or detector.name == "pilatus800k-2":
                 subdir = "/maxs/raw/"
                 detname = "maxs"
-            elif detector.name == "pilatus2M":
+            elif detector.name == "pilatus2m-1":
                 subdir = "/saxs/raw/"
                 detname = "saxs"
-            elif detector.name == "pilatus800":
+            elif detector.name == "pilatus800k-1":
                 subdir = "/waxs/raw/"
                 detname = "waxs"
+            elif 'webcam' in detector.name:
+                subdir = "/camera/"
+                detname = detector.name
+
             else:
                 if verbosity >= 1:
                     print("WARNING: Can't do file handling for detector '{}'.".format(detector.name))
                     return
 
         filename = detector.tiff.full_file_name.get()  # RL, 20210831
-        if not os.path.isfile(filename):
-            print("File does not exist")
-            return 
         # Alternate method to get the last filename
         # filename = '{:s}/{:s}.tiff'.format( detector.tiff.file_path.get(), detector.tiff.file_name.get()  )
 
@@ -2189,32 +2141,35 @@ class Sample_Generic(CoordinateSystem):
             # savename = self.get_savename(savename_extra=extra)
             savename = md["filename"]
             # link_name = '{}/{}{}_{:04d}_maxs.tiff'.format(RE.md['experiment_alias_directory'], subdir, savename, RE.md['scan_id']-1)
-            link_name = "{}/{}{}_{}.tiff".format(RE.md["experiment_alias_directory"], subdir, savename, detname)
-
-            if os.path.isfile(link_name):
-                i = 1
-                while os.path.isfile("{}.{:d}".format(link_name, i)):
-                    i += 1
-                os.rename(link_name, "{}.{:d}".format(link_name, i))
-            os.symlink(filename, link_name)
-
-
-            #debug the losing data issue on pil2m. suggested by T. Caswell
-            # with open(link_name, 'rb') as fin:
-            #     h = hashlib.md5(fin.read(1024)).hexdigest()
-            # with open(link_name + '.md5', 'w') as fout:
-            #     fout.write(h)
+            link_name = "{}/{}{}_000000_{}.tiff".format(RE.md["experiment_alias_directory"], subdir, savename, detname).replace('//','/')
+            # if 'camera' in detector.name:
+            #     link_name = "{}/{}{}_000000_{}.png".format(RE.md["experiment_alias_directory"], subdir, savename, detname).replace('//','/')
+            print(f"  A symlink will be created at: {proposal_path()}experiments/{link_name}")
+            
+            # if os.path.isfile(link_name):
+            #     i = 1
+            #     while os.path.isfile("{}.{:d}".format(link_name, i)):
+            #         i += 1
+            #     os.rename(link_name, "{}.{:d}".format(link_name, i))
+            # os.symlink(filename, link_name)
 
 
-            if verbosity >= 3:
-                print("  Data linked as: {}".format(link_name))
-                if not os.path.isfile(os.readlink(link_name)): #added by RL, 20231109
-                    raise ValueError('NO IMAGE OUTPUT.')
+            # #debug the losing data issue on pil2m. suggested by T. Caswell
+            # # with open(link_name, 'rb') as fin:
+            # #     h = hashlib.md5(fin.read(1024)).hexdigest()
+            # # with open(link_name + '.md5', 'w') as fout:
+            # #     fout.write(h)
+
+
+            # if verbosity >= 3:
+            #     print("  Data linked as: {}".format(link_name))
+            #     if not os.path.isfile(os.readlink(link_name)): #added by RL, 20231109
+            #         raise ValueError('NO IMAGE OUTPUT.')
                 
     def _old_handle_file(self, detector, extra=None, verbosity=3, subdirs=True, linksave=True, **md):
         subdir = ""
 
-        if detector.name == "pilatus300" or detector.name == "pilatus8002":
+        if detector.name == "pilatus300k-1" or detector.name == "pilatus800k-2":
             # chars = caget('XF:11BMB-ES{Det:SAXS}:TIFF1:FullFileName_RBV')
             # filename = ''.join(chr(char) for char in chars)[:-1]
             filename = detector.tiff.full_file_name.get()  # RL, 20210831
@@ -2254,7 +2209,7 @@ class Sample_Generic(CoordinateSystem):
                 if verbosity >= 3:
                     print("  Data linked as: {}".format(link_name))
 
-        elif detector.name == "pilatus2M":
+        elif detector.name == "pilatus2m-1":
             foldername = "/nsls2/xf11bm/"
 
             # chars = caget('XF:11BMB-ES{Det:PIL2M}:TIFF1:FullFileName_RBV')
@@ -2301,7 +2256,7 @@ class Sample_Generic(CoordinateSystem):
                 if verbosity >= 3:
                     print("  Data linked as: {}".format(link_name))
 
-        elif detector.name == "pilatus800":
+        elif detector.name == "pilatus800k-1":
             foldername = "/nsls2/xf11bm/"
 
             # chars = caget('XF:11BMB-ES{Det:PIL800K}:TIFF1:FullFileName_RBV')
@@ -2829,7 +2784,7 @@ class Sample_Generic(CoordinateSystem):
         md_current["sample_savename"] = savename
         md_current["measure_type"] = measure_type
         # md_current['filename'] = '{:s}_{:04d}.tiff'.format(savename, md_current['detector_sequence_ID'])
-        md_current["filename"] = "{:s}_{:04d}.tiff".format(savename, RE.md["scan_id"])
+        md_current["filename"] = "{:s}_{:04d}".format(savename, RE.md["scan_id"])
         md_current["beam_int_bim3"] = beam.bim3.flux(verbosity=0)
         md_current["beam_int_bim4"] = beam.bim4.flux(verbosity=0)
         md_current["beam_int_bim5"] = beam.bim5.flux(verbosity=0)
@@ -2874,7 +2829,7 @@ class Sample_Generic(CoordinateSystem):
         # Wait for detectors to be ready
         max_exposure_time = 0
         for detector in get_beamline().detector:
-            if detector.name in {"pilatus300", "pilatus800", "pilatus2M", "pilatus8002"}:
+            if detector.name in {"pilatus300k-1", "pilatus800k-1", "pilatus2m-1", "pilatus800k-2"}:
                 max_exposure_time = detector.cam.acquire_time.get()
             else:
                 if verbosity >= 1:
@@ -2939,8 +2894,8 @@ class Sample_Generic(CoordinateSystem):
         md_current.update(self.get_measurement_md())
         md_current["sample_savename"] = savename
         md_current["measure_type"] = measure_type
-        # md_current['filename'] = '{:s}_{:04d}.tiff'.format(savename, md_current['detector_sequence_ID'])
-        # md_current['filename'] = '{:s}_{:04d}.tiff'.format(savename, RE.md['scan_id'])
+        # md_current['filename'] = '{:s}_{:04d}'.format(savename, md_current['detector_sequence_ID'])
+        # md_current['filename'] = '{:s}_{:04d}'.format(savename, RE.md['scan_id'])
         md_current["filename"] = "{:s}_{:06d}".format(savename, RE.md["scan_id"])
         md_current.update(md)
 
@@ -2948,6 +2903,142 @@ class Sample_Generic(CoordinateSystem):
         # self.expose(exposure_time, extra=extra, verbosity=verbosity, **md)
 
         self.md["measurement_ID"] += 1
+
+    def runPotentiostats_Ext(self, num_frames, exposure_time=0.995, exposure_period=1, detectors=None, trigger_mode='ExtTrigger', extra=None, wait_time=None, verbosity=3, **md):
+        """
+        Continueous shots with internal trigger of detectors .
+        
+        Parameters
+        ----------
+        speeds: list
+            The list of spinner speeds in multiple steps.
+            speeds = [500, 2000, 500]
+        periods: list
+            The lasting time for corresponding spinner speed. 
+            periods = [5, 60, 20]
+        num_frames : int
+            The number of data points. 
+        exposure_time: float
+            The exposure time for single point
+        exposure_period: float
+            The exposure period for single point. should be at least 0.05s longer than exposure_time
+        md : dict, optional
+            metadata        
+        """
+
+        # print(speeds)
+
+        # speeds = tuple(speeds)
+        # times = tuple(times)
+        # print(type(speeds))
+        if exposure_period < exposure_time+0.005:
+            return print('Error: exposure period should be at least 0.005s more than exposure time.')
+
+        if detectors==None:
+            detectors = cms.detector
+
+        if exposure_time is not None:
+            self.set_attribute('exposure_time', exposure_time)
+            
+        # Set exposure time
+        for detector in get_beamline().detector:
+            yield from detector.setExposureTime(exposure_time)
+            yield from detector.setExposurePeriod(exposure_period)
+            yield from detector.setExposureNumber(num_frames)
+                
+        #bec.disable_plots()
+        #bec.disable_table()
+        if trigger_mode=='ExtTrigger':
+            detector.cam.trigger_mode.put(2)
+        if trigger_mode=='ExtMultiple':
+            detector.cam.trigger_mode.put(3)
+        if trigger_mode=='Internal':
+            detector.cam.trigger_mode.put(0)
+
+        yield from bps.sleep(2)        
+
+        savename = self.get_savename(savename_extra=extra)
+        
+        #caput('XF:11BMB-ES{Det:SAXS}:cam1:FileName', savename)
+        
+        if verbosity>=2 and (get_beamline().current_mode != 'measurement'):
+            print("WARNING: Beamline is not in measurement mode (mode is '{}')".format(get_beamline().current_mode))
+
+        if verbosity>=1 and len(cms.detector)<1:
+            print("ERROR: No detectors defined in cms.detector")
+            return
+        
+        md_current = self.get_md()
+        md_current['sample_savename'] = savename
+        md_current['series'] = 'series_measure'
+        md_current.update(self.get_measurement_md())
+        #md_current['filename'] = '{:s}_{:04d}.tiff'.format(savename, md_current['detector_sequence_ID'])
+        md_current['measure_series_num_frames'] = num_frames
+        md_current['filename'] = '{:s}_{:04d}.tiff'.format(savename, RE.md['scan_id'])
+        md_current['exposure_time'] = exposure_time
+        #md_current['measure_series_motor'] = motor.name
+        #md_current['measure_series_positions'] = [start, stop]
+
+
+        #md_current['fileno'] = '{:s}_{:04d}.tiff'.format(savename, RE.md['scan_id'])
+        md_current.update(md)
+        md = md_current
+        # print (md_current)
+
+        # turn on shutter
+        yield from shutter_on()
+
+        # Perform the scan
+        @bpp.stage_decorator(detectors)
+
+        def inner():
+
+            for detector in detectors:
+                status = yield from bps.trigger(detector, group='det')
+
+            # status = yield from bps.trigger(pilatus2M, group='det')
+
+            # for index, period in enumerate(periods):
+
+                # print('Step {} : speed = {}V for {}seconds'.format(index, speeds[index], period))
+            yield from bps.sleep(1)
+            
+            print('Trigger ON')
+            if wait_time != None:
+                yield from bps.sleep(wait_time)
+            
+
+            yield from bps.mv(TTL2, 1) #TLL on
+
+            yield from bps.wait(group='det')
+
+            #total_time = num_frames*exposure_period
+            #moving_interval = 1
+            # for index in range(int(total_time/moving_interval)):
+                # yield from bps.mov(smx, smx.position+0.1*index)
+                # yeild from sleep(1)
+            for detector in detectors:
+                yield from bps.read(detector)
+
+
+        yield from bpp.run_wrapper(
+            inner(), md=md#{'potentiostats': 'TTL2'}
+            )
+
+        #get_beamline().beam._test_off(wait_time=0.1)
+        yield from bps.mv(TTL2, 0) #TLL off
+        yield from shutter_off()
+
+        self.md['measurement_ID'] += 1
+
+        detector.cam.trigger_mode.put(0)   
+        #data collected, link uid to file name
+        for detector in cms.detector:
+            self.handle_fileseries(detector, num_frames=num_frames, extra=extra, verbosity=verbosity, **md)
+
+        #reset the num_frame back to 1
+        for detector in get_beamline().detector:
+            yield from detector.setExposureNumber(1)
 
     def _test_time(self):
         print(time.time())
@@ -2988,8 +3079,8 @@ class Sample_Generic(CoordinateSystem):
         md_current["measure_type"] = measure_type
 
         md_current.update(self.get_measurement_md())
-        # md_current['filename'] = '{:s}_{:04d}.tiff'.format(savename, md_current['detector_sequence_ID'])
-        md_current["filename"] = "{:s}_{:04d}.tiff".format(savename, RE.md["scan_id"])
+        # md_current['filename'] = '{:s}_{:04d}'.format(savename, md_current['detector_sequence_ID'])
+        md_current["filename"] = "{:s}_{:04d}".format(savename, RE.md["scan_id"])
         md_current.update(md)
         self._test_expose(exposure_time, shutteronoff=shutteronoff, extra=extra, verbosity=verbosity, **md_current)
         self.md["measurement_ID"] += 1
@@ -3039,7 +3130,7 @@ class Sample_Generic(CoordinateSystem):
         # Wait for detectors to be ready
         max_exposure_time = 0
         for detector in get_beamline().detector:
-            if detector.name in {"pilatus300", "pilatus2M"}:
+            if detector.name in {"pilatus300k-1", "pilatus2m-1"}:
                 current_exposure_time = caget("XF:11BMB-ES{}:cam1:AcquireTime".format(pilatus_Epicsname))
                 max_exposure_time = max(max_exposure_time, current_exposure_time)
             elif detector.name == "PhotonicSciences_CMS":
@@ -3068,7 +3159,7 @@ class Sample_Generic(CoordinateSystem):
 
                 status = 1
                 for detector in get_beamline().detector:
-                    if detector.name == "pilatus300" or "pilatus2M":
+                    if detector.name == "pilatus300k-1" or "pilatus2m-1":
                         print("status2.5 = ", status)
                         if caget("XF:11BMB-ES{}:cam1:Acquire".format(pilatus_Epicsname)) == 1:
                             status = 0
@@ -3403,7 +3494,7 @@ class Sample_Generic(CoordinateSystem):
         md_current["scan"] = "scan_measure"
         md_current.update(self.get_measurement_md())
         md_current["measure_series_num_frames"] = num_frames
-        md_current["filename"] = "{:s}_{:04d}.tiff".format(savename, RE.md["scan_id"])
+        md_current["filename"] = "{:s}_{:04d}".format(savename, RE.md["scan_id"])
         md_current["measure_series_motor"] = motor.name
         md_current["measure_series_positions"] = [start, stop]
         md_current["exposure_time"] = exposure_time
@@ -3508,24 +3599,24 @@ class Sample_Generic(CoordinateSystem):
         md_current["measure_type"] = measure_type
         md_current["series"] = "series_measure"
         md_current.update(self.get_measurement_md())
-        # md_current['filename'] = '{:s}_{:04d}.tiff'.format(savename, md_current['detector_sequence_ID'])
+        # md_current['filename'] = '{:s}_{:04d}'.format(savename, md_current['detector_sequence_ID'])
         md_current["measure_series_num_frames"] = num_frames
-        md_current["filename"] = "{:s}_{:04d}.tiff".format(savename, RE.md["scan_id"])
-        # md_current['filename'] = '{:s}_{:04d}.tiff'.format(savename, RE.md['scan_id']+1)
+        md_current["filename"] = "{:s}_{:04d}".format(savename, RE.md["scan_id"])
+        # md_current['filename'] = '{:s}_{:04d}'.format(savename, RE.md['scan_id']+1)
         md_current["exposure_time"] = exposure_time
         md_current["exposure_period"] = exposure_period
         # md_current['measure_series_motor'] = motor.name
         # md_current['measure_series_positions'] = [start, stop]
 
-        # md_current['fileno'] = '{:s}_{:04d}.tiff'.format(savename, RE.md['scan_id'])
+        # md_current['fileno'] = '{:s}_{:04d}'.format(savename, RE.md['scan_id'])
         md_current.update(md)
-
+        md = md_current
         print(RE.md["scan_id"])
 
         # Perform the scan
+        get_beamline().beam.on()
         # get_beamline().beam._test_on(wait_time=0.1)
         try:
-            get_beamline().beam.on()
             RE(count(get_beamline().detector, md=md_current))
         except:
             print('Series Scan Interupted! Handling Files.')
@@ -3651,7 +3742,7 @@ class Sample_Generic(CoordinateSystem):
     def _old_handle_fileseries(self, detector, num_frames=None, extra=None, verbosity=3, subdirs=True, **md):
         subdir = ""
 
-        if detector.name == "pilatus300" or detector.name == "pilatus8002":
+        if detector.name == "pilatus300k-1" or detector.name == "pilatus800k-2":
             filename = detector.tiff.full_file_name.get()  # RL, 20210831
 
             print("pilatus300k data handling")
@@ -3700,7 +3791,7 @@ class Sample_Generic(CoordinateSystem):
                         if num_frame == 0 or num_frame == np.max(num_frames):
                             print("  Data {} linked as: {}".format(filename_new, link_name_new))
 
-        elif detector.name == "pilatus2M":
+        elif detector.name == "pilatus2m-1":
             # chars = caget('XF:11BMB-ES{Det:PIL2M}:TIFF1:FullFileName_RBV')
             # filename = ''.join(chr(char) for char in chars)[:-1]
             # filename_part1 = ''.join(chr(char) for char in chars)[:-13]
@@ -3757,12 +3848,12 @@ class Sample_Generic(CoordinateSystem):
                         if num_frame == 0 or num_frame == np.max(num_frames):
                             print("  Data {} linked as: {}".format(filename_new, link_name_new))
 
-        # elif detector.name is  'pilatus800':
+        # elif detector.name is  "pilatus800k-1":
         # chars = caget('XF:11BMB-ES{Det:PIL800K}:TIFF1:FullFileName_RBV')
         # filename = ''.join(chr(char) for char in chars)[:-1]
         # filename_part1 = ''.join(chr(char) for char in chars)[:-13]
 
-        elif detector.name == "pilatus800":
+        elif detector.name == "pilatus800k-1":
             foldername = "/nsls2/xf11bm/"
 
             # chars = caget('XF:11BMB-ES{Det:PIL800K}:TIFF1:FullFileName_RBV')
@@ -3829,15 +3920,15 @@ class Sample_Generic(CoordinateSystem):
     def handle_fileseries(self, detector, num_frames=None, extra=None, verbosity=3, subdirs=True, **md):
         subdir = ""
         if subdirs:
-            if detector.name == "pilatus300" or detector.name == "pilatus8002":
+            if detector.name == "pilatus300k-1" or detector.name == "pilatus800k-2":
                 subdir = "/maxs/raw/"
                 detname = "maxs"
                 print("{} data handling".format(detector.name))
-            elif detector.name == "pilatus2M":
+            elif detector.name == "pilatus2m-1":
                 subdir = "/saxs/raw/"
                 detname = "saxs"
                 print("pilatus2M data handling")
-            elif detector.name == "pilatus800":
+            elif detector.name == "pilatus800k-1":
                 subdir = "/waxs/raw/"
                 detname = "waxs"
                 print("pilatus800k data handling")
@@ -3847,13 +3938,13 @@ class Sample_Generic(CoordinateSystem):
                     return
 
         filename = detector.tiff.full_file_name.get()  # RL, 20210831
-        filename_part1 = "{:s}/{:s}".format(detector.tiff.file_path.get(), detector.tiff.file_name.get())
+        # filename_part1 = "{:s}/{:s}".format(detector.tiff.file_path.get(), detector.tiff.file_name.get())
 
         # Alternate method to get the last filename
         # filename = '{:s}/{:s}.tiff'.format( detector.tiff.file_path.get(), detector.tiff.file_name.get()  )
 
-        # if verbosity>=3:
-        #    print('  Data saved to: {}'.format(filename))
+        if verbosity>=3:
+           print('  Data saved to: {}'.format(filename))
 
         # if md['measure_type'] is not 'snap':
         if True:
@@ -3863,49 +3954,48 @@ class Sample_Generic(CoordinateSystem):
             # link_name = '{}/{}{}'.format(RE.md['experiment_alias_directory'], subdir, md['filename'])
             # savename = md['filename'][:-5]
 
-            savename = self.get_savename(savename_extra=extra)
-            link_name = "{}/{}{}_{:06d}_{}.tiff".format(
-                RE.md["experiment_alias_directory"],
-                subdir,
-                savename,
-                RE.md["scan_id"] - 1,
-                detname,
-            )
-            link_name_part1 = "{}/{}{}_{:06d}".format(
-                RE.md["experiment_alias_directory"],
-                subdir,
-                savename,
-                RE.md["scan_id"] - 1,
-            )
+            # savename = self.get_savename(savename_extra=extra)
+            savename = md["filename"]
+            # savename = md["filename"][:-5]
+            # link_name = "{}/{}{}_{:06d}_{}.tiff".format(
+            #     RE.md["experiment_alias_directory"],
+            #     subdir,
+            #     savename,
+            #     RE.md["scan_id"] - 1,
+            #     detname,
+            # )
+            # link_name_part1 = "{}/{}{}_{:06d}".format(
+            #     RE.md["experiment_alias_directory"],
+            #     subdir,
+            #     savename,
+            #     RE.md["scan_id"] - 1,
+            # )
             # link_name = '{}/{}{}_{:06d}_{}.tiff'.format(RE.md['experiment_alias_directory'], subdir, savename, RE.md['scan_id'], detname)
             # link_name_part1 = '{}/{}{}_{:06d}'.format(RE.md['experiment_alias_directory'], subdir, savename, RE.md['scan_id'])
 
-            if os.path.isfile(link_name):
-                i = 1
-                while os.path.isfile("{}.{:d}".format(link_name, i)):
-                    i += 1
-                os.rename(link_name, "{}.{:d}".format(link_name, i))
+            # for num_frame in range(num_frames):
+            #     filename_new = "{}_{:06d}.tiff".format(filename_part1, num_frame)
+            #     if os.path.isfile(filename_new) == False:
+            #         return print("File number {} does not exist.".format(num_frame))
 
-            for num_frame in range(num_frames):
-                filename_new = "{}_{:06d}.tiff".format(filename_part1, num_frame)
-                if os.path.isfile(filename_new) == False:
-                    return print("File number {} does not exist.".format(num_frame))
-
-                link_name_new = "{}_{:06d}_{}.tiff".format(link_name_part1, num_frame, detname)
-                os.symlink(filename_new, link_name_new)
-                if verbosity >= 3:
-                    if num_frame == 0 or num_frame == np.max(num_frames):
-                        print("  Data {} linked as: {}".format(filename_new, link_name_new))
-            savename = self.get_savename(savename_extra=extra)
+            #     link_name_new = "{}_{:06d}_{}.tiff".format(link_name_part1, num_frame, detname)
+            #     os.symlink(filename_new, link_name_new)
+            #     if verbosity >= 3:
+            #         if num_frame == 0 or num_frame == np.max(num_frames):
+            #             print("  Data {} linked as: {}".format(filename_new, link_name_new))
             # savename = md['filename']
             # link_name = '{}/{}{}_{:04d}_maxs.tiff'.format(RE.md['experiment_alias_directory'], subdir, savename, RE.md['scan_id']-1)
-            link_name = "{}/{}{}_{}.tiff".format(RE.md["experiment_alias_directory"], subdir, savename, detname)
+            link_name = "{}/{}{}_000000_{}.tiff".format(RE.md["experiment_alias_directory"], subdir, savename, detname).replace('//', '/')
+            print(f"  Symlinks will be created at: {proposal_path()}experiments/{link_name}")
 
     # Control methods
     ########################################
     def setTemperature(self, temperature, output_channel="1", verbosity=3):
         # if verbosity>=1:
         # print('Temperature functions not implemented in {}'.format(self.__class__.__name__))
+        # temperature_set_RBV = caget("XF:11BM-ES{Env:01-Out:1}T-RB")
+
+        # while abs((temperature_set_RBV-273.15) - temperature) > 5.0:
         if output_channel == "1":
             if verbosity >= 2:
                 print(
@@ -3941,6 +4031,8 @@ class Sample_Generic(CoordinateSystem):
                     )
                 )
             caput("XF:11BM-ES{Env:01-Out:4}T-SP", temperature + 273.15)
+
+        # temperature_set_RBV = caget("XF:11BM-ES{Env:01-Out:1}T-RB")
 
     def temperature(self, temperature_probe="A", output_channel="1", RTDchan=2, verbosity=3):
         # if verbosity>=1:
@@ -4067,7 +4159,7 @@ class Sample_Generic(CoordinateSystem):
         # beam.absorber_transmission_list = [1, 0.041, 0.0017425, 0.00007301075, 0.00000287662355, 0.000000122831826, 0.00000000513437]
         scan_id = h.start["scan_id"]
         I_bim5 = 0 # beam intensity from bim5
-        I0 = dtable.pilatus2M_stats4_total
+        I0 = dtable['pilatus2m-1_stats4_total']
         filename = h.start["sample_name"]
         exposure_time = h.start["sample_exposure_time"]
 
@@ -4474,6 +4566,10 @@ class Holder(Stage):
     def setTemperature(self, temperature, output_channel="1", verbosity=3):
         # if verbosity>=1:
         # print('Temperature functions not implemented in {}'.format(self.__class__.__name__))
+
+        # temperature_set_RBV = caget("XF:11BM-ES{Env:01-Out:1}T-RB")
+
+        # while abs((temperature_set_RBV-273.15) - temperature) > 5.0:
         if output_channel == "1":
             if verbosity >= 2:
                 print(
@@ -4509,6 +4605,8 @@ class Holder(Stage):
                     )
                 )
             caput("XF:11BM-ES{Env:01-Out:4}T-SP", temperature + 273.15)
+
+            # temperature_set_RBV = caget("XF:11BM-ES{Env:01-Out:1}T-RB")
 
     def temperature(self, temperature_probe="A", output_channel="1", verbosity=3):
         # if verbosity>=1:
@@ -4822,3 +4920,57 @@ if False:
     hol.addSampleSlot(SampleGISAXS_Generic("test_sample_03"), 5.0)
 
     sam = hol.getSample(1)
+
+
+# manually handle file under data security
+# log in as user. create folder /profile_collection/users/2025-3/beamline/experiment/waxs/raw
+# ss = handlefilename(range(2118770, 2118860))
+# ss = handlefilename(range(2118903, 2118952))
+
+def handlefilename(uids):
+    """Given a list of uids, return a list of filenames."""
+    filenames = []
+    for uid in uids:
+        h = db[uid]
+        link_name = h.start['filename'] + '_000000_waxs.tiff'
+        for name, doc in h.documents():
+            if name == "resource":
+                rdoc = doc
+                break
+        filename = rdoc['root'] + '/' + rdoc['resource_path'] + '/' + rdoc['resource_kwargs']['filename'] + '_000000.tiff'
+        try:
+            h = db[uid]
+            fname = h.start["sample_name"]
+            filenames.append(fname)
+        except:
+            pass
+
+        os.symlink(filename, link_name)
+
+        filenames.append(link_name)
+    return filenames
+
+def handlefiles_names():
+    """Given a list of uids, return a list of filenames."""
+    filenames = []
+    uid = -1
+    h = db[uid]
+
+    for ii in range(h.start['measure_series_num_frames']):
+        link_name = h.start['filename'] + '_' + f'{ii:06d}' + '_waxs.tiff'
+        for name, doc in h.documents():
+            if name == "resource":
+                rdoc = doc
+                break
+        filename = rdoc['root'] + '/' + rdoc['resource_path'] + '/' + rdoc['resource_kwargs']['filename'] + '_' + f'{ii:06d}' + '.tiff'
+        # try:
+        #     h = db[uid]
+        #     fname = h.start["sample_name"]
+        #     filenames.append(fname)
+        # except:
+        #     pass
+
+        os.symlink(filename, link_name)
+
+        filenames.append(link_name)
+    return filenames

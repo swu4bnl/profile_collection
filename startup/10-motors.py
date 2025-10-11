@@ -8,7 +8,7 @@ from ophyd import EpicsMotor, Device, Component as Cpt
 # class Slits(Device):
 #    top = Cpt(EpicsMotor, '-Ax:T}Mtr')
 #    bottom = Cpt(EpicsMotor, '-Ax:B}Mtr')
-#beamline_stage = "default"  #for AB, please also change Smpl2-Y from 3... to -5 
+# beamline_stage = "default"  #for AB, please also change Smpl2-Y from 3... to -5 
 beamline_stage = 'open_MAXS'
 # beamline_stage = 'BigHuber'
 

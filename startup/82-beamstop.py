@@ -5,8 +5,10 @@ import time
 from pathlib import Path
 from datetime import datetime
 
+folder = '/home/xf11bm/.ipython/profile_collection/startup/'
+
 class Beamstop:
-    def __init__(self, name, config_file='/home/xf11bm/.ipython/profile_collection/startup/beamstop_config.cfg'):
+    def __init__(self, name, config_file = folder + 'beamstop_config.cfg'):
         self.name = name
         self.config_file = Path(config_file)
         self.positions = self._load_config()
@@ -19,12 +21,12 @@ class Beamstop:
         self.bsphi = bsphi.position
 
     @classmethod
-    def get(cls, name, config_file='/home/xf11bm/.ipython/profile_collection/startup/beamstop_config.cfg'):
+    def get(cls, name, config_file  = folder + 'beamstop_config.cfg'):
         print(f"Set current beamstop to '{name}' without moving.")
         return cls(name, config_file=config_file)
 
     @classmethod
-    def goto(cls, name, config_file='/home/xf11bm/.ipython/profile_collection/startup/beamstop_config.cfg'):
+    def goto(cls, name, config_file  = folder + 'beamstop_config.cfg'):
         bs = cls(name, config_file=config_file)
         # bs._move()
         RE(bs._move())

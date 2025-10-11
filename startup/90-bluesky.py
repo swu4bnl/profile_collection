@@ -354,9 +354,6 @@ def pump_chm(onoff, q=0):
     if q == 0:
         print(ss)
 
-
-# PROFILE_ROOT = os.path.dirname(__file__)
-# PROFILE_ROOT = '/nsls2/data/cms/legacy/xf11bm/ipython_profiles/profile_collection/startup'
 PROFILE_ROOT = "/home/xf11bm/.ipython/profile_collection/startup"
 CMS_CONFIG_FILENAME = os.path.join(PROFILE_ROOT, ".cms_config")
 
@@ -372,7 +369,7 @@ def config_update():
 
     current_config = {
         "bsx_pos": cms.bsx_pos,
-        #'armr_absorber_o':beam.armr_absorber_o,
+        'armr_absorber_o':beam.armr_absorber_o,
         "_delta_y_hover": robot._delta_y_hover,
         "_delta_y_slot": robot._delta_y_slot,
         "_delta_garage_x": robot._delta_garage_x,

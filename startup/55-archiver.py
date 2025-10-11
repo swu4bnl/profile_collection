@@ -255,3 +255,103 @@ def get_archived_pvs_from_uid(pv_list,uid,pre=0,post=0,verbose=True):
 # plt.title('uid: %s  sample: %s'%(md['uid'][:8],md['sample']),fontsize=14)
 # plt.ylim(-2,1)
 # plt.legend(loc='upper left',bbox_to_anchor=(1.2,.98))
+
+#### CMS customized Archiver decorators
+#### Added by Siyu Wu, 2025/08
+
+from functools import wraps
+
+arvReader = ArchiverReader({"url": "http://epics-services-cms.nsls2.bnl.local:11168", 
+                            "timezone": "US/Eastern"})
+
+def archived(output_file, pv_list=None, dt=0.1, verbose=True):
+    """
+    Decorator to archive PVs using Archiver between function start and end.
+    """
+        
+    def decorator(func):
+        @wraps(func)
+        async def wrapper(*args, **kwargs):
+            t_start = time.time()
+            t_start_str = datetime.fromtimestamp(t_start).strftime("%Y-%m-%d %H:%M:%S")
+            if verbose:
+                print(f"[Archiver] Recording PVs from {t_start_str}")
+
+            try:
+                result = await func(*args, **kwargs)
+            except KeyboardInterrupt:
+                print("[Archiver] Interrupted! Archiving up to this point.")
+                raise
+
+            finally:
+                t_end = time.time()
+                t_end_str = datetime.fromtimestamp(t_end).strftime("%Y-%m-%d %H:%M:%S")
+                if verbose:
+                    print(f"[Archiver] Recording PVs until {t_end_str}")
+
+                if dt is not None and dt > 0:
+                    # Build fixed time grid
+                    n_points = int((t_end - t_start) / dt) + 1
+                    time_grid = np.linspace(t_start, t_end, n_points)
+                    df_sync = pd.DataFrame({'timestamp': time_grid})
+                    df_sync['time_elapsed'] = df_sync['timestamp'] - t_start
+
+                    # For each PV, interpolate or forward-fill to time grid
+                    for pv in pv_list:
+                        try:
+                            df = arvReader.get(pv, t_start_str, t_end_str)
+                            # Convert archiver times to epoch seconds
+                            pv_times = pd.to_datetime(df['time']).astype(np.int64) / 1e9
+                            pv_data = df['data'].to_numpy()
+                            # Interpolate to grid (linear, or nearest if only one point)
+                            if len(pv_times) > 1:
+                                interp_data = np.interp(time_grid, pv_times, pv_data)
+                            elif len(pv_times) == 1:
+                                interp_data = np.full_like(time_grid, pv_data[0])
+                            else:
+                                interp_data = np.full_like(time_grid, np.nan)
+                            df_sync[f"{pv}_data"] = interp_data
+                            if verbose:
+                                print(f"[Archiver] {pv}: {len(pv_data)} points, interpolated to {len(interp_data)}")
+                        except Exception as e:
+                            print(f"[Archiver] Skipping PV '{pv}': {e}")
+                            df_sync[f"{pv}_data"] = np.full_like(time_grid, np.nan)
+
+                    # Move time_elapsed to first column
+                    cols = ['time_elapsed'] + [c for c in df_sync.columns if c != 'time_elapsed']
+                    df_sync = df_sync[cols]
+
+                    df_sync.to_csv(output_file, index=False)
+                    print(f"[Archiver] Saved {len(df_sync)} rows to {output_file}")
+                
+                else:
+                    since = t_start_str
+                    until = t_end_str
+                    df_all = pd.DataFrame()
+                    for pv in pv_list:
+                        try:
+                            df = arvReader.get(pv, since, until)
+                            ep_time = [pd.Timestamp(t).timestamp() for t in df['time']]
+                            pv_data = df['data'].to_numpy()
+                            df_pv = pd.DataFrame({f"{pv}_time": ep_time, f"{pv}_data": pv_data})
+                            df_all = pd.concat([df_all, df_pv], axis=1)
+                            if verbose:
+                                print(f"[Archiver] {pv}: {len(df_pv)} points")
+                        except Exception as e:
+                            print(f"[Archiver] Skipping PV '{pv}': {e}")
+                    df_all.to_csv(output_file, index=False)
+                    print(f"[Archiver] Saved {len(df_all)} rows to {output_file}")
+            return result
+        return wrapper
+    return decorator
+
+# Example Usage:
+
+# linkam_pvs = [
+#     "XF:11BM-ES:{LINKAM}:TEMP",            # Temperature
+#     "XF:11BM-ES:{LINKAM}:TST_FORCE",       # Force
+#     "XF:11BM-ES:{LINKAM}:TST_STRESS",      # Stress
+# ]
+# @archived("linkam_archiver_record.csv", pv_list=linkam_pvs, archiver_instance=ARV)
+# def run_linkam_steps():
+#     LThermal.run_step(0)

@@ -25,7 +25,7 @@ from bluesky.suspenders import SuspendFloor, SuspendCeil
 # RE.install_suspender(sus)
 
 
-RE.md["experiment_alias_directory"] = "/nsls2/data/cms/legacy/xf11bm/data/2023_1/beamline/Commissioning"
+RE.md["experiment_alias_directory"] = proposal_path() + "experiments/beamline/Commissioning"
 # cms.SAXS.setCalibration([737, 1680-582], 3, [-65, -73]) #3m, 13.5kev
 # cms.SAXS.setCalibration([738, 1097], 3.0, [-65, -73])   #3m,13.5kev
 # cms.SAXS.setCalibration([738, 1680-590], 2, [-65, -73])
@@ -249,20 +249,20 @@ class Sample(SampleTSAXS):
             RE(detector.setExposurePeriod(exposure_period))
             RE(detector.setExposureNumber(num_frames))
 
-            # if detector.name is 'pilatus2M':
+            # if detector.name is "pilatus2m-1":
 
             #     if exposure_time != caget('XF:11BMB-ES{Det:PIL2M}:cam1:AcquireTime'):
             #         caput('XF:11BMB-ES{Det:PIL2M}:cam1:AcquireTime', exposure_time)
             #     caput('XF:11BMB-ES{Det:PIL2M}:cam1:AcquirePeriod', exposure_period)
             #     caput('XF:11BMB-ES{Det:PIL2M}:cam1:NumImages', num_frames)
 
-            # if detector.name is 'pilatus800':
+            # if detector.name is "pilatus800k-1":
             #     if exposure_time != caget('XF:11BMB-ES{Det:PIL800K}:cam1:AcquireTime'):
             #         caput('XF:11BMB-ES{Det:PIL800K}:cam1:AcquireTime', exposure_time)
             #     caput('XF:11BMB-ES{Det:PIL800K}:cam1:AcquirePeriod', exposure_period)
             #     caput('XF:11BMB-ES{Det:PIL800K}:cam1:NumImages', num_frames)
 
-            # if detector.name is 'pilatus300' :
+            # if detector.name is "pilatus300k-1" :
             #     if exposure_time != caget('XF:11BMB-ES{Det:SAXS}:cam1:AcquireTime'):
             #         caput('XF:11BMB-ES{Det:SAXS}:cam1:AcquireTime', exposure_time)
             #     caput('XF:11BMB-ES{Det:SAXS}:cam1:AcquirePeriod', exposure_period)

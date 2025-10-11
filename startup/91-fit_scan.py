@@ -951,7 +951,7 @@ def fit_scan(
         detectors = get_beamline().detector
         plot_y = get_beamline().PLOT_Y
 
-        # plot_y = pilatus2M.stats4.total
+        # plot_y = pilatus2m-1.stats4.total
         # print("plot_y is {}".format(plot_y))
 
     else:
@@ -1037,7 +1037,8 @@ def fit_scan(
 
     # md['exposure_time'] = exposure_time_last
     # if plot_y=='pilatus300_stats4_total' or plot_y=='pilatus300_stats3_total':
-    if plot_y == "pilatus2M_stats4_total" or plot_y == "pilatus2M_stats3_total":
+    if plot_y == "pilatus2m-1_stats4_total" or plot_y == "pilatus2m-1_stats3_total":
+    #TODO: if plot_y == detector.name + '_stats4_total':
         remove_last_Pilatus_series()
 
     # check save_flg and save the scan data thru databroker
@@ -1162,7 +1163,7 @@ def fit_edge(
     bec.enable_table()
 
     # if plot_y=='pilatus300_stats4_total' or plot_y=='pilatus300_stats3_total':
-    if plot_y == "pilatus2M_stats4_total" or plot_y == "pilatus2M_stats3_total":
+    if plot_y == "pilatus2m-1_stats4_total" or plot_y == "pilatus2m-1_stats3_total":
         remove_last_Pilatus_series()
 
     x0_guess = np.average(livetable.xdata)
@@ -1398,7 +1399,7 @@ def _test_fit_scan(
     #    RE(scan(list(detectors), motor, start, stop, num, per_step=per_step, md=md), subs )
 
     # if plot_y=='pilatus300_stats4_total' or plot_y=='pilatus300_stats3_total':
-    if plot_y == "pilatus2M_stats4_total" or plot_y == "pilatus2M_stats3_total":
+    if plot_y == "pilatus2m-1_stats4_total" or plot_y == "pilatus2m-1_stats3_total":
         remove_last_Pilatus_series()
 
     if fit is None:
@@ -1518,17 +1519,17 @@ def ps(
     if uid == "-1":
         uid = -1
     if det == "default":
-        if db[uid].start['detectors'][0] == "pilatus2M" and suffix == "default":
-            intensity_field = "pilatus2M_stats4_total"
+        if db[uid].start['detectors'][0] == "pilatus2m-1" and suffix == "default":
+            intensity_field = "pilatus2m-1_stats4_total"
             # intensity_field = "elm_sum_all"
-        elif db[uid].start['detectors'][0] == "pilatus2M":
+        elif db[uid].start['detectors'][0] == "pilatus2m-1":
             intensity_field = "elm" + suffix
         elif suffix == "default":
             intensity_field = db[uid].start['detectors'][0] + "_stats1_total"
         else:
             intensity_field = db[uid].start['detectors'][0] + suffix
     else:
-        if det == "pilatus2M" and suffix == "default":
+        if det == "pilatus2m-1" and suffix == "default":
             intensity_field = "elm_sum_all"
         elif det == "elm":
             intensity_field = "elm" + suffix

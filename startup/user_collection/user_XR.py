@@ -460,7 +460,7 @@ RE.md["experiment_proposal_number"] = "303342"
 RE.md["experiment_SAF_number"] = "304276"
 RE.md["experiment_user"] = "Loo et al"
 RE.md["experiment_type"] = "XR"  # TSAXS, GISAXS, GIWAXS, etc.
-RE.md["experiment_project"] = "polymeric semiconductor thin films"
+# RE.md["experiment_project"] = "polymeric semiconductor thin films"
 
 
 # this is the 2nd try to run only RT and 70deg to check the radiation damage.
