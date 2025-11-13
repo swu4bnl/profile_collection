@@ -1423,8 +1423,447 @@ def setMonitor(monitor=["stats1", "stats2", "stats3", "stats4"]):
 
     pilatus2M.read_attrs = ["tiff"] + monitor
 
+#software flyscan
+def flyscan(det, mtr, start, stop, step, exp_time):
+    # motors: smy (+/- 2), sth (+/- 1)
+    # det = pilatus2M
+
+    # It takes 0.4 to 0.7 s longer to complete motion, so let's add 1 s for now
+    #   It should be computed/estimated more accurately
+    num = int(np.abs(stop - start) / step)
+    total_time = num * exp_time
+    velocity = np.abs(stop - start) / total_time
+
+    det.tiff.kind = "omitted"
+    det.tiff.disable_on_stage()
+    det.stats4.total.kind = "hinted"
+
+    frame_numbers = []
+    frame_timestamps = []
+    frame_mtr_pos = []
+    frame_roi2_ts = []
+    frame_roi3_ts = []
+    frame_roi4_ts = []
+
+    frame_roi2_total_ts = []
+    frame_roi3_total_ts = []
+    frame_roi4_total_ts = []
+    frame_roi2_total = []
+    frame_roi3_total = []
+    frame_roi4_total = []
+
+    def accumulate(value, old_value, timestamp, **kwargs):
+        frame_numbers.append(value)
+        frame_timestamps.append(timestamp)
+        frame_mtr_pos.append(mtr.position)
+
+    def accumulate_roi2(value, old_value, timestamp, **kwargs):
+        frame_roi2_ts.append(timestamp)
+
+    def accumulate_roi3(value, old_value, timestamp, **kwargs):
+        frame_roi3_ts.append(timestamp)
+
+    def accumulate_roi4(value, old_value, timestamp, **kwargs):
+        frame_roi4_ts.append(timestamp)
+
+    def accumulate_roi2_total(value, old_value, timestamp, **kwargs):
+        frame_roi2_total_ts.append(timestamp)
+        frame_roi2_total.append(value)
+
+    def accumulate_roi3_total(value, old_value, timestamp, **kwargs):
+        frame_roi3_total_ts.append(timestamp)
+        frame_roi3_total.append(value)
+
+    def accumulate_roi4_total(value, old_value, timestamp, **kwargs):
+        frame_roi4_total_ts.append(timestamp)
+        frame_roi4_total.append(value)
+
+    def inner():
+        # if det == None:
+        #     det = cms.detector[0]
+        detector = pilatus2M
+        cid = detector.cam.array_counter.subscribe(accumulate)
+        cid2 = detector.stats2.array_counter.subscribe(accumulate_roi2)
+        cid3 = detector.stats3.array_counter.subscribe(accumulate_roi3)
+        cid4 = detector.stats4.array_counter.subscribe(accumulate_roi4)
+        cid2a = detector.stats2.total.subscribe(accumulate_roi2_total)
+        cid3a = detector.stats3.total.subscribe(accumulate_roi3_total)
+        cid4a = detector.stats4.total.subscribe(accumulate_roi4_total)
+        try:
+            yield from bps.trigger(detector, group="fake_fly")
+            yield from bps.abs_set(mtr, stop, group="fake_fly")
+            yield from bps.wait(group="fake_fly")
+        finally:
+            detector.cam.array_counter.unsubscribe(cid)
+            detector.stats2.array_counter.unsubscribe(cid2)
+            detector.stats3.array_counter.unsubscribe(cid3)
+            detector.stats4.array_counter.unsubscribe(cid4)
+            detector.stats2.total.unsubscribe(cid2a)
+            detector.stats3.total.unsubscribe(cid3a)
+            detector.stats4.total.unsubscribe(cid4a)
+
+    @bpp.reset_positions_decorator(
+        [det.cam.num_images, det.cam.acquire_time, det.cam.acquire_period, mtr.velocity]
+    )
+    # @bpp.reset_positions_decorator(
+    #     [det.cam.num_images, det.cam.acquire_time, det.cam.acquire_period]
+    # )
+    def inner2():
+        print(f"setting motor start position")
+        yield from bps.abs_set(mtr, start, wait=True)
+        print(f"setting motor start velocity: {velocity}")
+        # yield from bps.mv(mtr.velocity, velocity)
+        # if mtr.name == "smx" or mtr.name == "smy":
+        #     mtr.velocity.set(velocity)
+        #     yield from bps.sleep(1)
+        #     if mtr.velocity.get() != velocity:
+        #         print(f"WARNING: motor velocity {mtr.velocity.get()} is different from the set value {velocity}")
+        # else:
+        yield from bps.mv(mtr.velocity, velocity)
+
+        print(f"Number of acquired images: {num}. Exposure time: {exp_time}")
+
+        yield from bps.mv(det.cam.acquire_time, exp_time - 0.005)
+        yield from bps.mv(det.cam.acquire_period, exp_time)
+        yield from bps.mv(det.cam.num_images, num)
+        yield from inner()
+
+    yield from inner2()
+    ## for testing plot
+    # lp = LivePlot(det.stats4.total, mtr.name, ax=lambda: plt.figure(num='flyscan').gca())
+    # cbs = [lp]
+    # yield from bpp.subs_wrapper(inner2, cbs)
+
+    def trim_list(v, num):
+        n_first = max(len(v) - num, 0)
+        return v[n_first:]
+
+    def set_total_values(frame_roi_ts, total_ts, total, dt=0.25 * exp_time):
+        total_ts = [_ - dt for _ in total_ts]
+        vals = [0] * len(frame_roi_ts)
+        n_current, v_current = 0, 0
+        for n in range(len(vals)):
+            if n_current < len(total_ts) and total_ts[n_current] < frame_roi_ts[n]:
+                v_current = total[n_current]
+                n_current += 1
+            vals[n] = v_current
+        return vals
+
+    # 0-th frame is discarded during trimming
+    _ = frame_mtr_pos
+    frame_mtr_pos = [_[0]] + [(_[n] + _[n - 1]) / 2 for n in range(1, len(_))]
+
+    total_roi2 = set_total_values(frame_roi2_ts, frame_roi2_total_ts, frame_roi2_total)
+    total_roi3 = set_total_values(frame_roi3_ts, frame_roi3_total_ts, frame_roi3_total)
+    total_roi4 = set_total_values(frame_roi4_ts, frame_roi4_total_ts, frame_roi4_total)
+
+    num = num - 1  # Discard the 1st point
+
+    frame_numbers = trim_list(frame_numbers, num)
+    frame_timestamps = trim_list(frame_timestamps, num)
+    frame_mtr_pos = trim_list(frame_mtr_pos, num)
+    frame_roi2_ts = trim_list(frame_roi2_ts, num)
+    frame_roi3_ts = trim_list(frame_roi3_ts, num)
+    frame_roi4_ts = trim_list(frame_roi4_ts, num)
+    total_roi2 = trim_list(total_roi2, num)
+    total_roi3 = trim_list(total_roi3, num)
+    total_roi4 = trim_list(total_roi4, num)
+
+    print("**********************************************************************")
+
+    print(f"POSITION, TOTAL_ROI2, TOTAL_ROI3, TOTAL_ROI4")
+    for n, pos in enumerate(frame_mtr_pos):
+        print(f"{pos:11.5f} {total_roi2[n]:11.1f} {total_roi3[n]:11.1f} {total_roi4[n]:11.1f}")
+    print("**********************************************************************")
+
+    return frame_mtr_pos, total_roi2, total_roi3, total_roi4
 
 
+
+def align_motor(det, mtr, start, stop, step, exp_time, select_roi=4,  mtr_max_velocity=0.08, fitting=True, model_type='peak', plot=True):
+    mtr_current = mtr.position
+    # start, stop = mtr_current + start_rel, mtr_current + stop_rel
+
+    max_step = exp_time * mtr_max_velocity
+    step = min(step, max_step)
+    print(f"Y-scan step: {step}")
+    # exp_time_min = step / mtr_max_velocity
+    # exp_time = max(exp_time, exp_time_min)
+    # print(f"Y-scan exposure time: {exp_time}")
+
+    @bpp.finalize_decorator(final_plan=shutter_off)
+    def inner():
+        yield from shutter_on()
+        pos, roi2, roi3, roi4 = yield from flyscan(det, mtr, start, stop, step, exp_time)
+
+        # print(pos, roi)
+        cen_return = None
+        roi = roi4 if select_roi == 4 else roi3 if select_roi == 3 else roi2
+        print(pos, roi)
+        # Get axes for plotting
+        # if plot:
+        #     print("Plotting...")
+        #     # print(roi, pos)
+        #     title = "fly_scan: {} vs. {}".format(det.name, mtr.name)
+
+        #     fig = None
+        #     for i in plt.get_fignums():
+        #         title_cur = plt.figure(i).canvas.manager.window.windowTitle()
+        #         if title_cur == title:
+        #             fig = plt.figure(i)
+        #             break
+
+        #     if fig is None:
+        #         # New figure
+        #         # fig, ax = plt.subplots()
+        #         fig = plt.figure(figsize=(11, 7), facecolor="white")
+        #         fig.canvas.manager.toolbar.pan()
+
+        #         fig.canvas.manager.set_window_title(title)
+
+        #     # ax = fig.gca()
+        #     # ax.cla()
+        #     fig.clear()
+        #     plt.plot(pos, roi, 'b.-')
+        #     plt.xlabel(f"{mtr.name} position")
+        #     plt.ylabel(f"ROI{select_roi} counts")
+        #     plt.title(f"Fly scan: {det.name} vs. {mtr.name}")
+            # plt.show(block=False)
+            # fig.tight_layout()      
+            # fig.canvas.draw()
+            # last_data = pos, roi
+                # subs.append(liveplot)
+            
+
+        if fitting:
+            try:
+                print("Fitting...")
+                print("Fitting...")
+                print("Fitting...")
+                print("Fitting...")
+                print("Fitting...")
+                # yield from bps.sleep(3)  # Let the plot update
+                # cen, _, _ = do_fitting(pos, roi, model_type=model_type)
+                print(model_type)
+                if model_type == 'step':
+                    print('step fitting')
+                    cen, fwhm = ps_xy(pos, roi, der=True)
+                else:
+                    print('peak fitting')
+                    cen, fwhm = ps_xy(pos, roi, der=False)
+                print(model_type, cen, fwhm)
+                print(f"Center: {cen}")
+                # plt.axvline(cen, color='r', linestyle='--')
+                # plt.show(block=False)
+                if cen < min(pos) or cen > max(pos):
+                    print(f"WARNING: The center {cen} is outside of the scan range.")
+                    cen = mtr_current
+
+                cen_return = cen
+
+            except Exception as ex:
+                cen = mtr_current
+                print(f"ERROR: Failed to find the edge: {ex}")
+
+            
+        else:            
+            cen = mtr_current
+            print(f"NO fittig: Go back to original postion {cen}")
+
+        yield from bps.abs_set(mtr, cen, wait=True)
+        yield from bps.mv(det.cam.num_images, 1)
+        yield from bps.trigger(det, group="fake_fly")
+        yield from bps.wait(group="fake_fly")
+        # plt.show(block=False)
+
+        return cen_return
+        
+
+    return (yield from inner())
+
+
+def _fly_scan(mtr, start, stop, step, exp_time, select_roi, det=None, fitting=True, model_type='peak'):
+    if det is None:
+        det = cms.detector[0]
+
+    @bpp.stage_decorator([det])
+    def inner():
+        yield from align_motor(mtr=mtr, start=start, stop=stop, step=step, exp_time=exp_time, det=det, select_roi=select_roi, fitting=fitting, model_type=model_type)
+
+    yield from inner()
+
+    # return results
+
+def fly_scan(
+    motor,
+    span,
+    step=0.1,
+    select_roi=None, 
+    detectors=None,
+    detector_suffix="",
+    exposure_time=0.3,
+    toggle_beam=True,
+    plot=True,
+    fit=None,
+    wait_time=None,
+    fitting=True, 
+    model_type='peak',
+    save_flg=0,
+):
+    """
+    Scans the specified motor, and attempts to fit the data as requested.
+
+    Parameters
+    ----------
+    motor : motor
+        The axis/stage/motor that you want to move.
+    span : float
+        The total size of the scan range (centered about the current position).
+        If a two-element list is instead specified, this is interpreted as the
+        distances relative to the current position for the start and end.
+    num : int
+        The number of scan points.
+    fit : None or string
+        If None, then fitting is not done. Otherwise, the model specified by the
+        supplied string is used.
+            peaks: gauss, lorentz, doublesigmoid, square
+            edges: sigmoid, step
+            stats: max, min, COM (center-of-mass), HM (half-max)
+    background : None or string
+        A baseline/background underlying the fit function can be specified.
+        (In fact, a sequence of summed background functions can be supplied.)
+            constant, linear
+    md : dict, optional
+        metadata
+    """
+
+    # TODO: Normalize per ROI pixel and per count_time?
+    # TODO: save scan data with save_flg=1.
+
+    if toggle_beam:
+        beam.on()
+
+    if not beam.is_on():
+        print("WARNING: Experimental shutter is not open.")
+
+    initial_position = motor.user_readback.value
+
+    if type(span) is list:
+        start = initial_position + span[0]
+        stop = initial_position + span[1]
+    else:
+        start = initial_position - span / 2.0
+        stop = initial_position + span / 2.0
+    span = abs(stop - start)
+    # positions, dp = np.linspace(start, stop, num, endpoint=True, retstep=True)
+
+    if detectors is None:
+        # detselect(pilatus_name, suffix='_stats4_total')
+        detectors = get_beamline().detector[0]
+
+    else:
+        plot_y = "{}{}".format(detectors[0].name, detector_suffix)
+
+    subs = []
+
+    if exposure_time is None:
+        exposure_time = 0.3
+
+    if select_roi is None:
+        select_roi = 4
+
+    # md["plan_header_override"] = "fit_scan"
+    # md["scan"] = "fit_scan"
+    # md["measure_type"] = "fit_scan_{}".format(motor.name)
+    # md["fit_function"] = fit
+    # md["fit_background"] = background
+
+
+    # Perform the scan
+    RE(_fly_scan(mtr=motor, start=start, stop=stop, step=step, exp_time=exposure_time, select_roi=select_roi, det=detectors, fitting=fitting, model_type=model_type))
+
+
+    # # Get axes for plotting
+    # if plot is True:
+    #     title = "fit_scan: {} vs. {}".format(detectors[0].name, motor.name)
+    #     # if len(plt.get_fignums())>0:
+    #     # Try to use existing figure
+    #     # fig = plt.gcf() # Most recent figure
+
+    #     fig = None
+    #     for i in plt.get_fignums():
+    #         title_cur = plt.figure(i).canvas.manager.window.windowTitle()
+    #         if title_cur == title:
+    #             fig = plt.figure(i)
+    #             break
+
+    #     if fig is None:
+    #         # New figure
+    #         # fig, ax = plt.subplots()
+    #         fig = plt.figure(figsize=(11, 7), facecolor="white")
+    #         fig.canvas.manager.toolbar.pan()
+
+    #     fig.canvas.manager.set_window_title(title)
+    #     ax = fig.gca()
+
+    #     livetable = LiveTable([motor] + list(detectors))
+    #     # subs.append(livetable)
+    #     # liveplot = LivePlot_Custom(plot_y, motor.name, ax=ax)
+    #     liveplot = LivePlot(plot_y, motor.name, ax=ax)
+    #     subs.append(liveplot)
+
+    # if wait_time is not None:
+    #     subs.append(MotorWait(motor, wait_time))
+
+
+    # if fit in ["max", "min", "COM", "HM", "HMi"] or type(fit) is list:
+    #     livefit = LiveStat(fit, plot_y, motor.name)
+
+    #     livefitplot = LiveStatPlot(livefit, ax=ax, scan_range=[start, stop])
+
+    #     subs.append(livefitplot)
+
+    # elif fit is not None:
+    #     # Perform a fit
+
+    #     # livefit = LiveFit(lm_model, plot_y, {'x': motor.name}, init_guess)
+    #     livefit = LiveFit_Custom(
+    #         fit,
+    #         plot_y,
+    #         {"x": motor.name},
+    #         scan_range=[start, stop],
+    #         background=background,
+    #     )
+
+    #     # livefitplot = LiveFitPlot(livefit, color='k')
+    #     livefitplot = LiveFitPlot_Custom(livefit, ax=ax, scan_range=[start, stop])
+
+    #     subs.append(livefitplot)
+
+
+    # if plot_y == "pilatus2m-1_stats4_total" or plot_y == "pilatus2m-1_stats3_total":
+    #     remove_last_Pilatus_series()
+
+    # # check save_flg and save the scan data thru databroker
+    # if save_flg == 1:
+    #     header = db[-1]
+    #     dtable = header.table()
+    #     filename = "{}/{}".format(RE.md["experiment_alias_directory"], header.start["scan_id"])
+    #     dtable.to_csv(filename)
+
+    if toggle_beam:
+        beam.off()
+
+    # if fit is None:
+
+    #     motor.move(initial_position)
+
+    # else:
+    #     print(livefit.result.values)
+    #     x0 = livefit.result.values["x0"]
+    #     # mov(motor, x0)
+    #     motor.move(x0)
+    #     return livefit.result
 
 
 from bluesky.plan_stubs import one_1d_step
@@ -1667,6 +2106,151 @@ def ps(
 
 
 
+def ps_xy(x, y,
+    shift=0.5,
+    logplot="off",
+    der=True,
+    plot=True,
+):
+    """
+    YG Copied from CHX beamline@March 18, 2018
+    function to determine statistic on line profile (assumes either peak or erf-profile)
+    calling sequence: uid='-1',det='default',suffix='default',shift=.5)
+    det='default' -> get detector from metadata, otherwise: specify, e.g. det='eiger4m_single'
+    suffix='default' -> _stats1_total / _sum_all, otherwise: specify, e.g. suffix='_stats2_total'
+    shift: scale for peak presence (0.5 -> peak has to be taller factor 2 above background)
+    """
+    # import datetime
+    # import time
+    # import numpy as np
+    # from PIL import Image
+    # from databroker import db, get_fields, get_images, get_table
+    # from matplotlib import pyplot as pltfrom
+    # from lmfit import  Model
+    # from lmfit import minimize, Parameters, Parameter, report_fit
+    # from scipy.special import erf
+
+    # field='dcm_b';intensity_field='elm_sum_all'
+    x = np.array(x)
+    y = np.array(y)
+    # print(t)
+    if der:
+        y = np.diff(y)
+        x = x[1:]
+
+    PEAK = x[np.argmax(y)]
+    PEAK_y = np.max(y)
+    COM = np.sum(x * y) / np.sum(y)
+
+    ### from Maksim: assume this is a peak profile:
+    def is_positive(num):
+        return True if num > 0 else False
+
+    # Normalize values first:
+    ym = (y - np.min(y)) / (np.max(y) - np.min(y)) - shift  # roots are at Y=0
+
+    positive = is_positive(ym[0])
+    list_of_roots = []
+    for i in range(len(y)):
+        current_positive = is_positive(ym[i])
+        if current_positive != positive:
+            list_of_roots.append(
+                x[i - 1]
+                + (x[i] - x[i - 1]) / (abs(ym[i]) + abs(ym[i - 1])) * abs(ym[i - 1])
+            )
+            positive = not positive
+    if len(list_of_roots) >= 2:
+        FWHM = abs(list_of_roots[-1] - list_of_roots[0])
+        CEN = list_of_roots[0] + 0.5 * (list_of_roots[1] - list_of_roots[0])
+        ps.fwhm = FWHM
+        ps.cen = CEN
+        # return {
+        #    'fwhm': abs(list_of_roots[-1] - list_of_roots[0]),
+        #    'x_range': list_of_roots,
+    # }
+    else:  # ok, maybe it's a step function..
+        print("no peak...trying step function...")
+        ym = ym + shift
+
+        def err_func(x, x0, k=2, A=1, base=0):  #### erf fit from Yugang
+            return base - A * erf(k * (x - x0))
+
+        mod = Model(err_func)
+        ### estimate starting values:
+        x0 = np.mean(x)
+        # k=0.1*(np.max(x)-np.min(x))
+        pars = mod.make_params(x0=x0, k=200, A=1.0, base=0.0)
+        result = mod.fit(ym, pars, x=x)
+        CEN = result.best_values["x0"]
+        FWHM = result.best_values["k"]
+        ps.cen = CEN
+        ps.fwhm = FWHM
+
+    ### re-plot results:
+    if plot:
+        if logplot == "on":
+            plt.close(999)
+            plt.figure(999)
+            plt.semilogy([PEAK, PEAK], [np.min(y), np.max(y)], "k--", label="PEAK")
+            # plt.hold(True)
+            plt.semilogy([CEN, CEN], [np.min(y), np.max(y)], "r-.", label="CEN")
+            plt.semilogy([COM, COM], [np.min(y), np.max(y)], "g.-.", label="COM")
+            plt.semilogy(x, y, "bo-")
+            plt.xlabel('xlabel')
+            plt.ylabel('ylabel')
+            plt.legend()
+            plt.title(
+                "uid: "
+                # + str(uid)
+                # + " @ "
+                # + str(t)
+                + "\nPEAK: "
+                + str(PEAK_y)[:8]
+                + " @ "
+                + str(PEAK)[:8]
+                + "   COM @ "
+                + str(COM)[:8]
+                + "\n FWHM: "
+                + str(FWHM)[:8]
+                + " @ CEN: "
+                + str(CEN)[:8],
+                size=9,
+            )
+            plt.show()
+        else:
+            plt.close(999)
+            plt.figure(999)
+            plt.plot([PEAK, PEAK], [np.min(y), np.max(y)], "k--", label="PEAK")
+            # plt.hold(True)
+            plt.plot([CEN, CEN], [np.min(y), np.max(y)], "r-.", label="CEN")
+            plt.plot([COM, COM], [np.min(y), np.max(y)], "g.-.", label="COM")
+            plt.plot(x, y, "bo-")
+            plt.xlabel('xlabel')
+            plt.ylabel('ylabel')
+            plt.legend()
+            plt.title(
+                "uid: "
+                # + str(uid)
+                # + " @ "
+                # + str(t)
+                + "\nPEAK: "
+                + str(PEAK_y)[:8]
+                + " @ "
+                + str(PEAK)[:8]
+                + "   COM @ "
+                + str(COM)[:8]
+                + "\n FWHM: "
+                + str(FWHM)[:8]
+                + " @ CEN: "
+                + str(CEN)[:8],
+                size=9,
+            )
+            plt.show()
+
+    ### assign values of interest as function attributes:
+    ps.peak = PEAK
+    ps.com = COM
+    return CEN, FWHM #ps.peak, ps.com, ps.cen, ps.fwhm
 
 
 # TODO:

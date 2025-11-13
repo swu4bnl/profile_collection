@@ -8,8 +8,8 @@ from ophyd import EpicsMotor, Device, Component as Cpt
 # class Slits(Device):
 #    top = Cpt(EpicsMotor, '-Ax:T}Mtr')
 #    bottom = Cpt(EpicsMotor, '-Ax:B}Mtr')
-# beamline_stage = "default"  #for AB, please also change Smpl2-Y from 3... to -5 
-beamline_stage = 'open_MAXS'
+beamline_stage = "default"  #for AB, please also change Smpl2-Y from 3... to -5 
+# beamline_stage = 'open_MAXS'
 # beamline_stage = 'BigHuber'
 
 print('Beamline_stage = {}'.format(beamline_stage))
@@ -148,6 +148,11 @@ elif beamline_stage == "BigHuber":
     # # smx = EpicsMotor('XF:11BMB-ES{ESP:3-Ax:C1}Mtr', name='smx')
     sprayy = EpicsMotor("XF:11BMB-ES{Chm:Smpl2-Ax:X}Mtr", name="sprayy")
 
+#added in 10-27-2025 for telescoping flight path
+fpn = EpicsMotor("XF:11BM-ES{Mdrive-Ax:1}Mtr", name="fpn")
+fpr = EpicsMotor("XF:11BM-ES{Mdrive-Ax:2}Mtr", name="fpr")
+
+ 
 
 # goniometer
 smy2 = EpicsMotor("XF:11BMB-ES{Chm:Smpl-Ax:Y}Mtr", name="smy2")
