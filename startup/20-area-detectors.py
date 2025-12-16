@@ -102,6 +102,19 @@ class ProsilicaDetectorCamV33(ProsilicaDetectorCam):
             if hasattr(cpt, "ensure_nonblocking"):
                 cpt.ensure_nonblocking()
 
+    #added by RL
+    def ensure_blocking(self):
+        self.stage_sigs["wait_for_plugins"] = "Yes"
+        for c in self.parent.component_names:
+            cpt = getattr(self.parent, c)
+            if cpt is self:
+                continue
+            if hasattr(cpt, "ensure_blocking"):
+                try:
+                    cpt.ensure_blocking()
+                except:
+                    pass
+
 class StandardProsilica(SingleTrigger, ProsilicaDetector):
     tiff = Cpt(TIFFPluginWithFileStore,
                suffix='TIFF1:',
@@ -250,6 +263,7 @@ class Pilatus800V33(SingleTriggerV33, PilatusDetector):
             # self.cam.acquire_period,
             # exposure_time + 0.1,
         )
+        
         # self.cam.acquire_time.put(exposure_time)
         # self.cam.acquire_period.put(exposure_time+.1)
         # caput('XF:11BMB-ES{Det:PIL2M}:cam1:AcquireTime', exposure_time)
@@ -356,6 +370,11 @@ class Pilatus2MV33(SingleTriggerV33, PilatusDetector):#, h5=False):
             # self.cam.acquire_period,
             # exposure_time + 0.1,
         )    
+        print('Setting exposure time to ', exposure_time)
+        while self.cam.acquire_time.get() != exposure_time:
+            #yield from asyncio.sleep(0.1)
+            yield from bps.sleep(0.1)
+            print('Waiting for exposure time to be set correctly...')
 
     def setExposurePeriod(self, exposure_period, verbosity=3):
         yield from mv(self.cam.acquire_period, exposure_period)
@@ -574,7 +593,7 @@ if Camera_on==True:
 
         camera.read_attrs.append('tiff')
         camera.tiff.read_attrs = []
-        camera.cam.ensure_nonblocking()
+        # camera.cam.ensure_nonblocking()
 
 
 # class StandardsimDetectorV33(SingleTriggerV33, ProsilicaDetector):
@@ -656,6 +675,8 @@ if Pilatus800_on == True:
     pilatus800.stats4.total.kind = "hinted"
     STATS_NAMES = ["stats1", "stats2", "stats3", "stats4", "stats5"]
     pilatus800.read_attrs = ["tiff"] + STATS_NAMES
+    # pilatus800.cam.ensure_blocking()
+
     for stats_name in STATS_NAMES:
         stats_plugin = getattr(pilatus800, stats_name)
         stats_plugin.read_attrs = ["total"]
@@ -746,7 +767,8 @@ if Pilatus2M_on == True:
     for stats_name in STATS_NAMES2M:
         stats_plugin = getattr(pilatus2M, stats_name)
         stats_plugin.read_attrs = ["total"]
-    pilatus2M.cam.ensure_nonblocking()
+    # pilatus2M.cam.ensure_nonblocking() #changed by RL 25-11-15, 
+    # pilatus2M.cam.ensure_blocking() #changed by RL 25-11-15, 
     pilatus2M.tiff.ensure_blocking()
     pilatus2M.stats3.total.kind = "hinted"
     pilatus2M.stats4.total.kind = "hinted"
@@ -829,7 +851,7 @@ if Pilatus2M_on == True:
 if Pilatus800_on == True:
     pilatus800_h5 = PilatusV33_h5("XF:11BMB-ES{Det:PIL800K}:", name="pilatus800k-1")
     pilatus800_h5.h5.read_attrs = []
-    pilatus800.cam.ensure_nonblocking()
+    pilatus800_h5.cam.ensure_nonblocking()
 
     STATS_NAMES2M = ["stats1", "stats2", "stats3", "stats4"]
     pilatus800_h5.read_attrs = ["h5"] + STATS_NAMES2M
@@ -873,7 +895,7 @@ if Pilatus800_2_on == True:
 
     STATS_NAMES2M = ["stats1", "stats2", "stats3", "stats4"]
     pilatus8002_h5.read_attrs = ["h5"] + STATS_NAMES2M
-    pilatus8002.cam.ensure_nonblocking()
+    pilatus8002_h5.cam.ensure_nonblocking()
 
     for stats_name in STATS_NAMES:
         stats_plugin = getattr(pilatus8002_h5, stats_name)
