@@ -69,37 +69,37 @@ def remove_last_Pilatus_series():
         os.remove(filename)
 
 
-if False:
-    # %run -i /opt/ipython_profiles/profile_collection/startup/91-fit_scan.py
-
-    # Define a 'fake' detector, for testing purposes
-    from bluesky.examples import Reader
-
-    def fake_detector_response_peak():
-        pos = armz.user_readback.value
-        A = 1000.0
-        x0 = -40.0
-        sigma = 0.1
-        I = A * np.exp(-((pos - x0) ** 2) / (2 * sigma**2)) + 10.0
-
-        return np.random.poisson(I)
-
-    def fake_detector_response_edge():
-        pos = armz.user_readback.value
-        A = 1000.0
-        x0 = -17.0
-        sigma = 0.05
-        I = A / (1 + np.exp(-(pos - x0) / (-sigma))) + 10.0
-
-        return np.random.poisson(I)
-
-    # det = Reader( 'det', {'intensity': lambda: 1.0*( (DETx.user_readback.value - (-40.0))**2 )/(2.*(0.1)**2) } )
-    det = Reader("intensity", {"intensity": fake_detector_response_edge})
-    detselect(det)
-    # detselect(det, suffix='')
-
-    # fit_scan(DETx, 1, 3, detector_suffix='')
-    # fit_scan(armz, [-5,0], 5, detector_suffix='')
+# this code last worked ~2017
+# # %run -i /opt/ipython_profiles/profile_collection/startup/91-fit_scan.py
+#
+# # Define a 'fake' detector, for testing purposes
+# from bluesky.examples import Reader
+#
+# def fake_detector_response_peak():
+#     pos = armz.user_readback.value
+#     A = 1000.0
+#     x0 = -40.0
+#     sigma = 0.1
+#     I = A * np.exp(-((pos - x0) ** 2) / (2 * sigma**2)) + 10.0
+#
+#     return np.random.poisson(I)
+#
+# def fake_detector_response_edge():
+#     pos = armz.user_readback.value
+#     A = 1000.0
+#     x0 = -17.0
+#     sigma = 0.05
+#     I = A / (1 + np.exp(-(pos - x0) / (-sigma))) + 10.0
+#
+#     return np.random.poisson(I)
+#
+# # det = Reader( 'det', {'intensity': lambda: 1.0*( (DETx.user_readback.value - (-40.0))**2 )/(2.*(0.1)**2) } )
+# det = Reader("intensity", {"intensity": fake_detector_response_edge})
+# detselect(det)
+# # detselect(det, suffix='')
+#
+# # fit_scan(DETx, 1, 3, detector_suffix='')
+# # fit_scan(armz, [-5,0], 5, detector_suffix='')
 
 
 class MotorWait(CallbackBase):
