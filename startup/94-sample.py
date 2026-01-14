@@ -2014,17 +2014,21 @@ class Sample_Generic(CoordinateSystem):
 
         # Modularized exposure time setting
         for detector in get_beamline().detector:
+            # RE(detector.setExposureTime(exposure_time, verbosity=verbosity))
+            
             md["exposure_time"] = self.set_detector_exposure_time(detector, exposure_time, self.md, verbosity=verbosity)
+            self.md["exposure_time"] = md["exposure_time"]
+
             # Ensure number of images is 1
-            if detector.cam.num_images.get() != 1:
-                detector.cam.num_images.set(1)
+            # if detector.cam.num_images.get() != 1:
+            #     detector.cam.num_images.set(1)
 
 
             # --- Legacy comments/code preserved below ---
             # if detector.name is "pilatus800k-1" and exposure_time != detector.cam.acquire_time.get():  #caget('XF:11BMB-ES{Det:PIL2M}:cam1:AcquireTime'):
             # RE(detector.setExposureTime(exposure_time, verbosity=verbosity))
             # if detector.name is "pilatus300k-1" and exposure_time != detector.cam.acquire_time.get():
-            # detector.setExposureTime(exposure_time, verbosity=verbosity)
+            #     detector.setExposureTime(exposure_time, verbosity=verbosity)
             ##extra wait time when changing the exposure time.
             ##time.sleep(2)
             #############################################
@@ -3145,9 +3149,10 @@ class Sample_Generic(CoordinateSystem):
         for detector in get_beamline().detector:
             if exposure_time != detector.cam.acquire_time.get():
                 RE(detector.setExposureTime(exposure_time, verbosity=verbosity))
-
+            self.md["exposure_time"] = detector.cam.acquire_time.get()
+        
         savename = self.get_savename(savename_extra=extra)
-
+        
         md_current = self.get_md()
         md_current.update(self.get_measurement_md())
         md_current["sample_savename"] = savename
@@ -3156,6 +3161,7 @@ class Sample_Generic(CoordinateSystem):
         # md_current['filename'] = '{:s}_{:04d}'.format(savename, RE.md['scan_id'])
         md_current["filename"] = "{:s}_{:06d}".format(savename, RE.md["scan_id"])
         md_current.update(md)
+        # print(self.md)
 
         self.expose(exposure_time, extra=extra, verbosity=verbosity, **md_current)
         # self.expose(exposure_time, extra=extra, verbosity=verbosity, **md)
