@@ -18,7 +18,7 @@ ophyd = ">=1.11.0"
 pyepics = "*"
 python = ">=3.12,<3.13"
 semver = ">=3.0.4,<4"
-tiled-client = ">=0.2.0"
+tiled-client = ">=0.2.3"
 lmfit = ">=1.3.4,<2"
 paramiko = ">=4.0.0,<5"
 peakutils = ">=1.3.5,<2"
@@ -58,7 +58,7 @@ numpy = ">2"
 
 
 [feature.terminal.tasks]
-start = "unset SESSION_MANAGER PYTHONPATH && MPLBACKEND=qtagg ipython --profile-dir=."
+start = "unset SESSION_MANAGER PYTHONPATH && PYTHONUSERBASE=/tmp MPLBACKEND=qtagg ipython --profile-dir=."
 pvs = "ipython --profile-dir=. -c 'get_pv_types(); exit()'"
 
 [environments]
