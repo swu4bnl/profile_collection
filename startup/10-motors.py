@@ -1,6 +1,9 @@
 print(f'Loading {__file__}')
 
-from ophyd import EpicsMotor, Device, Component as Cpt
+from ophyd import EpicsMotor, EpicsSignal, Device, Component as Cpt
+import json
+from pathlib import Path
+from datetime import datetime
 
 # slity = EpicsMotor('XF:11BMA-OP{Slt:0-Ax:T}Mtr', name='slity')
 
@@ -22,17 +25,211 @@ print('Beamline_stage = {}'.format(beamline_stage))
 ###################################################################################
 
 
+########## Universal Configuration Management for Multi-Motor Devices ##########
+
+class Configurable:
+    """
+    Mixin class that adds configuration control capabilities to multi-motor devices.
+    Provides position saving/loading, relative/absolute movement, and show commands.
+    
+    Methods:
+        get(name): Load a saved position without moving
+        goto(name): Load and move to a saved position
+        load_position(name): Load a saved position configuration by name
+        save_position(name): Save current position with a given name
+        show_position(): Display all motor positions
+        movr(motor_name, delta): Move motor relative to current position
+        mov(motor_name, value): Move motor to absolute position
+        clear_config(config_file): Keep only latest entry for each position
+    
+    Example usage:
+        # After initializing s4 (MotorCenterAndGap instance):
+        s4.show_position()                    # Display current positions
+        s4.save_position('open')              # Save as 'open'
+        s4.mov('xc', 5.0)                     # Move xc center to 5.0
+        s4.movr('yg', 0.5)                    # Move yg gap by +0.5
+        
+        # Load position data without moving:
+        pos_data = s4.get('open')             # Load 'open' position
+        
+        # Load and move to saved position:
+        s4.goto('open')                       # Move s4 to 'open' position
+    """
+    
+    _config_motors = []  # Override in device to specify which motors to track
+    _config_file = None  # Override to specify config file path
+    
+    def get(self, name):
+        """
+        Load a saved position configuration without moving motors.
+        
+        Args:
+            name: Position name to load
+            
+        Returns:
+            Dict with position data
+        """
+        return self.load_position(name)
+    
+    def goto(self, name):
+        """
+        Load a saved position and move all motors there.
+        
+        Args:
+            name: Position name to load and move to
+            
+        Usage:
+            s4.goto('open')  # Load and move s4 to 'open' position
+        """
+        positions_dict = self._load_config()
+        entries = positions_dict.get(name)
+        if entries and isinstance(entries, list):
+            target_positions = entries[-1]  # Get latest entry
+            print(f"Moving '{self.name}' to position '{name}'...")
+            for motor_name in self._config_motors:
+                if (hasattr(self, motor_name) and 
+                    motor_name in target_positions):
+                    motor = getattr(self, motor_name)
+                    target_value = target_positions[motor_name]
+                    motor.move(target_value)
+            self.show_position()
+        else:
+            print(f"No saved position found for '{name}'.")
+    
+    def _load_config(self):
+        """Load configuration from JSON file."""
+        if self._config_file is None:
+            self._config_file = Path(f'{self.name}_config.cfg')
+        
+        config_file = Path(self._config_file) if not isinstance(self._config_file, Path) else self._config_file
+        if config_file.exists():
+            with open(config_file, 'r') as f:
+                return json.load(f)
+        return {}
+    
+    def _save_config(self):
+        """Save configuration to JSON file."""
+        if self._config_file is None:
+            self._config_file = Path(f'{self.name}_config.cfg')
+        
+        config_file = Path(self._config_file) if not isinstance(self._config_file, Path) else self._config_file
+        with open(config_file, 'w') as f:
+            json.dump(self._positions, f, indent=2)
+    
+    def _sync(self):
+        """Synchronize internal position cache with actual motor positions."""
+        for motor_name in self._config_motors:
+            if hasattr(self, motor_name):
+                motor = getattr(self, motor_name)
+                setattr(self, f'_{motor_name}', motor.position)
+    
+    def _get_positions_dict(self):
+        """Get current positions as a dictionary."""
+        positions = {}
+        for motor_name in self._config_motors:
+            if hasattr(self, motor_name):
+                motor = getattr(self, motor_name)
+                positions[motor_name] = motor.position
+        return positions
+    
+    def load_position(self, name):
+        """Load a saved position configuration by name."""
+        positions = self._load_config()
+        entries = positions.get(name)
+        if entries:
+            latest = entries[-1]
+            print(f"Loaded position '{name}' from {latest.get('timestamp', 'unknown')}")
+            for motor_name in self._config_motors:
+                if motor_name in latest and hasattr(self, motor_name):
+                    motor = getattr(self, motor_name)
+                    setattr(self, f'_{motor_name}', latest[motor_name])
+            return latest
+        else:
+            print(f"No saved position found for '{name}'.")
+            return None
+    
+    def save_position(self, name):
+        """Save current position with a given name."""
+        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        entry = self._get_positions_dict()
+        entry['timestamp'] = timestamp
+        
+        positions = self._load_config()
+        positions.setdefault(name, []).append(entry)
+        self._positions = positions
+        self._save_config()
+        print(f"Saved position '{name}' at {timestamp}.")
+    
+    def show_position(self):
+        """Display current motor positions."""
+        self._sync()
+        print(f"Device '{self.name}' positions:")
+        for motor_name in self._config_motors:
+            if hasattr(self, motor_name):
+                motor = getattr(self, motor_name)
+                print(f"  {motor_name} = {motor.position}")
+    
+    def relative_move(self, motor_name, delta):
+        """Move a motor relative to current position."""
+        if motor_name not in self._config_motors or not hasattr(self, motor_name):
+            print(f"Invalid motor name: {motor_name}")
+            return
+        
+        motor = getattr(self, motor_name)
+        new_pos = motor.position + delta
+        motor.move(new_pos)
+        print(f"{motor_name} moved relatively by {delta} -> {new_pos}")
+    
+    def movr(self, motor_name, delta):
+        """Move a motor relative to current position (short alias)."""
+        return self.relative_move(motor_name, delta)
+    
+    def absolute_move(self, motor_name, value):
+        """Move a motor to an absolute position."""
+        if motor_name not in self._config_motors or not hasattr(self, motor_name):
+            print(f"Invalid motor name: {motor_name}")
+            return
+        
+        motor = getattr(self, motor_name)
+        motor.move(value)
+        print(f"{motor_name} moved to {value}")
+    
+    def mov(self, motor_name, value):
+        """Move a motor to an absolute position (short alias)."""
+        return self.absolute_move(motor_name, value)
+    
+    @staticmethod
+    def clear_config(config_file):
+        """Clear configuration, keeping only the latest entry for each position name."""
+        path = Path(config_file)
+        if path.exists():
+            with open(path, 'r') as f:
+                data = json.load(f)
+            for key in data:
+                if isinstance(data[key], list) and len(data[key]) > 0:
+                    data[key] = [data[key][-1]]
+            with open(path, 'w') as f:
+                json.dump(data, f, indent=2)
+            print(f"Configuration file '{config_file}' cleaned: only latest entries retained.")
+        else:
+            print(f"Config file '{config_file}' does not exist.")
+
+
 ########## motor classes ##########
-class MotorCenterAndGap(Device):
+class MotorCenterAndGap(Device, Configurable):
     "Center and gap using Epics Motor records"
     xc = Cpt(EpicsMotor, "-Ax:XC}Mtr")
     yc = Cpt(EpicsMotor, "-Ax:YC}Mtr")
     xg = Cpt(EpicsMotor, "-Ax:XG}Mtr")
     yg = Cpt(EpicsMotor, "-Ax:YG}Mtr")
-
-    ## TODO Adding beamstop style configuration control functions
-    ## Siyu Wu 2026 03 06
     
+    _config_motors = ['xc', 'yc', 'xg', 'yg']
+    
+    def __init__(self, *args, config_file=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        if config_file is not None:
+            self._config_file = Path(config_file)
+        self._positions = self._load_config()
 
 
 class Blades(Device):
@@ -92,11 +289,24 @@ s0 = Blades("XF:11BMA-OP{Slt:0", name="s0")
 
 ########## Endstation slits #########
 ## jj slits -- usage: s*.xc, s*.xg, s*.yc, s*.yg
-s1 = MotorCenterAndGap("XF:11BMB-OP{Slt:1", name="s1")
-s2 = MotorCenterAndGap("XF:11BMB-OP{Slt:2", name="s2")
-s3 = MotorCenterAndGap("XF:11BMB-OP{Slt:3", name="s3")
-s4 = MotorCenterAndGap("XF:11BMB-OP{Slt:4", name="s4")
-s5 = MotorCenterAndGap("XF:11BMB-OP{Slt:5", name="s5")
+
+# Option 1: Default behavior (config file = {device_name}_config.cfg in current directory)
+# s1 = MotorCenterAndGap("XF:11BMB-OP{Slt:1", name="s1")
+
+# Option 2: Custom config file for each slit (recommended for separate tracking)
+s1 = MotorCenterAndGap("XF:11BMB-OP{Slt:1", name="s1", config_file='cfg/s1_config.cfg')
+s2 = MotorCenterAndGap("XF:11BMB-OP{Slt:2", name="s2", config_file='cfg/s2_config.cfg')
+s3 = MotorCenterAndGap("XF:11BMB-OP{Slt:3", name="s3", config_file='cfg/s3_config.cfg')
+s4 = MotorCenterAndGap("XF:11BMB-OP{Slt:4", name="s4", config_file='cfg/s4_config.cfg')
+s5 = MotorCenterAndGap("XF:11BMB-OP{Slt:5", name="s5", config_file='cfg/s5_config.cfg')
+
+# Option 3: Share one config file for all slits (if you prefer centralized tracking)
+# slits_config_file = 'cfg/slits_config.cfg'
+# s1 = MotorCenterAndGap("XF:11BMB-OP{Slt:1", name="s1", config_file=slits_config_file)
+# s2 = MotorCenterAndGap("XF:11BMB-OP{Slt:2", name="s2", config_file=slits_config_file)
+# s3 = MotorCenterAndGap("XF:11BMB-OP{Slt:3", name="s3", config_file=slits_config_file)
+# s4 = MotorCenterAndGap("XF:11BMB-OP{Slt:4", name="s4", config_file=slits_config_file)
+# s5 = MotorCenterAndGap("XF:11BMB-OP{Slt:5", name="s5", config_file=slits_config_file)
 
 # attenuators
 filters = {
@@ -292,10 +502,7 @@ def wGONIO():
 
 #Add by Siyu 2025/04/14
 
-import json
 import time
-from pathlib import Path
-from datetime import datetime
 
 class Beamstop:
     def __init__(self, name, config_file='beamstop_config.cfg'):
