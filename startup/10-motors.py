@@ -28,32 +28,26 @@ print('Beamline_stage = {}'.format(beamline_stage))
 ########## Universal Configuration Management for Multi-Motor Devices ##########
 
 class Configurable:
-    """
-    Mixin class that adds configuration control capabilities to multi-motor devices.
-    Provides position saving/loading, relative/absolute movement, and show commands.
-    
-    Methods:
-        get(name): Load a saved position without moving
-        goto(name): Load and move to a saved position
-        load_position(name): Load a saved position configuration by name
-        save_position(name): Save current position with a given name
-        show_position(): Display all motor positions
-        movr(motor_name, delta): Move motor relative to current position
-        mov(motor_name, value): Move motor to absolute position
-        clear_config(config_file): Keep only latest entry for each position
-    
-    Example usage:
-        # After initializing s4 (MotorCenterAndGap instance):
-        s4.show_position()                    # Display current positions
-        s4.save_position('open')              # Save as 'open'
-        s4.mov('xc', 5.0)                     # Move xc center to 5.0
-        s4.movr('yg', 0.5)                    # Move yg gap by +0.5
-        
-        # Load position data without moving:
-        pos_data = s4.get('open')             # Load 'open' position
-        
-        # Load and move to saved position:
-        s4.goto('open')                       # Move s4 to 'open' position
+    """Mixin for multi-motor devices: save/load named positions and move motors.
+
+    Features:
+    - `get(name)` loads a saved position (no motion).
+    - `goto(name)` loads and moves all tracked motors to the saved values.
+    - `save_position(name)` stores the current motor positions under `name`.
+    - `mov(motor, value)` and `movr(motor, delta)` are short aliases for
+      absolute and relative motor movement.
+
+    Example:
+        # The s4 config contains: 'trans_inair', 'GI_inair', 'trans_vacuum',
+        # and 'GI_vacuum'. 
+        # Example usage for s4 (a MotorCenterAndGap instance):
+
+        s4.show_position()                   # print current positions
+        s4.goto('trans_inair')               # move s4 to the 'trans_inair' set
+        s4.save_position('test')             # save current position as 'test'
+        s4.mov('xc', -1.48)                  # absolute move for a single axis
+        s4.movr('yg', 0.05)                  # relative move for a single axis
+
     """
     
     _config_motors = []  # Override in device to specify which motors to track
@@ -299,6 +293,22 @@ s2 = MotorCenterAndGap("XF:11BMB-OP{Slt:2", name="s2", config_file='cfg/s2_confi
 s3 = MotorCenterAndGap("XF:11BMB-OP{Slt:3", name="s3", config_file='cfg/s3_config.cfg')
 s4 = MotorCenterAndGap("XF:11BMB-OP{Slt:4", name="s4", config_file='cfg/s4_config.cfg')
 s5 = MotorCenterAndGap("XF:11BMB-OP{Slt:5", name="s5", config_file='cfg/s5_config.cfg')
+
+# Practical s4 examples (useful copy-paste snippets):
+# The file cfg/s4_config.cfg contains named sets: 'trans_inair', 'GI_inair',
+# 'trans_vacuum', and 'GI_vacuum'. Use these names with get/goto.
+# Show current positions:
+#     s4.show_position()
+# Load saved values without moving:
+#     data = s4.get('trans_inair')
+#     print('trans_inair:', data)
+# Move to a saved configuration (performs motion):
+#     s4.goto('trans_inair')
+# Move to the latest GI vacuum config (there are multiple saved entries):
+#     s4.goto('GI_vacuum')
+# Single-axis moves (no RE required):
+#     s4.mov('xc', -1.48)    # absolute
+#     s4.movr('yg', 0.05)    # relative
 
 # Option 3: Share one config file for all slits (if you prefer centralized tracking)
 # slits_config_file = 'cfg/slits_config.cfg'

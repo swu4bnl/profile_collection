@@ -35,7 +35,7 @@ class SampleExchangeRobot(Stage):
         # self.yabs(-82.0) # Good height for 'slotted approach'
         # self.yabs(-77.0) # Good height for 'grip' (grip-screws sitting at bottom of wells)
         # self.yabs(-67.0) # Good height for 'hover' (sample held above stage)
-        self._delta_y_hover = 5.0
+        self._delta_y_hover = 7.0
         self._delta_y_slot = 4.0
 
         #'SAFE' position of gripper

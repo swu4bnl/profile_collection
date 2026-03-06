@@ -101,5 +101,5 @@ tw = TiledWriter(client = tiled_writing_client_sql,
 tw = BufferingWrapper(tw)
 
 # Subscribe the TiledWriter
-RE.md["tiled_access_tags"] = (RE.md["data_session"],)
-RE.subscribe(tw)
+# RE.md["tiled_access_tags"] = (RE.md["data_session"],)
+# RE.subscribe(tw)
