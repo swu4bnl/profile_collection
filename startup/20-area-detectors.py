@@ -49,7 +49,7 @@ elif beamline_stage == "default":
     Pilatus800_2_on = False
 
 # Pilatus800_on = False
-Pilatus800_2_on = True
+# Pilatus800_2_on = True
 # Pilatus800_2_on = False
 # Pilatus2M_on = False
 

@@ -2395,8 +2395,8 @@ class CapillaryHolder(PositionalHolder):
         # slot 15; smx = -61.94
 
         # Set the x and y origin to be the center of slot 8
-        self.ysetOrigin(-4.2)
-        self.xsetOrigin(-16) #as of 09/19/2025 --Siyu
+        self.ysetOrigin(-4.1)
+        self.xsetOrigin(-16.81) #as of 01/22/2026 --Siyu
 
 
         self.mark("right edge", x=+54.4)

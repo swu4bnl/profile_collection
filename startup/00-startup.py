@@ -81,3 +81,15 @@ def proposal_path():
 
 def assets_path():
     return proposal_path() + "assets/"
+
+#swap users 
+from nslsii.sync_experiment import switch_redis_proposal
+def proposal_swap(proposal_id, username=None):
+    if username == None:
+        username=RE.md['username']
+    RE.md = switch_redis_proposal(proposal_id, beamline='cms', username=username)    
+    # Ensure tiled_access_tags is always a list
+    # if tags := RE.md.get('tiled_access_tags'):
+    #     if isinstance(tags, str):
+    #         tags = [tags]
+    #     RE.md['tiled_access_tags'] = tags
