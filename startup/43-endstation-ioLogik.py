@@ -939,26 +939,45 @@ class Potentiostats(Device):
 
 
 # PV list of Moxa ioLogik:: AO, Analog Output
-# class PDUpv(object):
-#     def __init__(self, ii):
-#         self.name = "AO_Chan{}".format(ii)
-#         # self.sp = 'XF:11BM-ES{{Ecat:AO{}}}'.format(ii)
-#         #XF:11BM1-CT{PDU:2}Sw:1-Sel
-#         #XF:11BM1-CT{PDU:2}Sw:1-Sts
+class PowerDUnit(Device):
+    # def __init__(self, ii):
+    #     self.name = "AO_Chan{}".format(ii)
+        # self.sp = 'XF:11BM-ES{{Ecat:AO{}}}'.format(ii)
+        #XF:11BM1-CT{PDU:2}Sw:1-Sel
+        #XF:11BM1-CT{PDU:2}Sw:1-Sts
 
-#         self.sp = "XF:11BM1-CT{{PDU:2}}Sw:{}".format(ii)
-#         # self.sts = 'XF:11BMB-ES{}AO:{}-RB'.format('{IO}', ii)
-#         self.sts = self.sp
-#         self.PV = self.sp
-#         self.signal = EpicsSignal(self.PV)
-#         # self.sts = 'XF:11BMB-ES{}AO:{}-RB'.format('{IO}', ii)
+        # self.sp = "XF:11BM1-CT{{PDU:2}}Sw:{}-Sel".format(ii)
+        # # self.sts = 'XF:11BMB-ES{}AO:{}-RB'.format('{IO}', ii)
+        # self.sts = "XF:11BM1-CT{{PDU:2}}Sw:{}-Sts".format(ii)
+        # self.PV = self.sp
+        # self.signal = EpicsSignal(self.PV)
+        # self.sts = 'XF:11BMB-ES{}AO:{}-RB'.format('{IO}', ii)
+    cmd = Cpt(EpicsSignal, "-Sel")
+    status = Cpt(EpicsSignal, "Sts")
 
-# pdu = [None]
-# for ii in range(1, 8):
-#     pdu.append(pdu(ii))
+    def on(self):
+        self.cmd.put(1)
 
+    def off(self):
+        self.cmd.put(0)
 
+    def _on(self):
+        return (yield from mv(self.cmd, 1))
 
+    def _off(self):
+        return (yield from mv(self.cmd, 0))
+    
+pdu = {}
+
+prefix_pdu = "XF:11BM1-CT{PDU:2}Sw:"
+# pdu1 = PowerDUnit(prefix_pdu + '1', name="pdu1")
+
+for ii in range(9):
+    # if ii ==0:
+    #     pdu.append(0)
+    # else:
+    if ii>0:
+        pdu[ii] = PowerDUnit(prefix_pdu + str(ii), name="pdu{}".format(ii))
 
 
 prefix = "XF:11BMB-ES{PS:1}"

@@ -30,6 +30,10 @@ class MotorCenterAndGap(Device):
     xg = Cpt(EpicsMotor, "-Ax:XG}Mtr")
     yg = Cpt(EpicsMotor, "-Ax:YG}Mtr")
 
+    ## TODO Adding beamstop style configuration control functions
+    ## Siyu Wu 2026 03 06
+    
+
 
 class Blades(Device):
     "Actual T/B/O/I and virtual center/gap using Epics Motor records"
