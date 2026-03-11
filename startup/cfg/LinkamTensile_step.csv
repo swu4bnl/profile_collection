@@ -1,3 +1,2 @@
 stepNo,temperature,rate,wait_time,position,velocity
-0,25,10,1000,10000,50
-1,25,10,1000,10000,50
+0,80,30,800,80000,100
