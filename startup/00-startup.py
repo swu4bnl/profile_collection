@@ -61,6 +61,7 @@ nslsii.configure_base(get_ipython().user_ns,
 
 print("Initializing Tiled reading client...\nMake sure you check for duo push.")
 tiled_reading_client = cat = from_profile("nsls2", username=None)["cms"]["raw"]
+mig = from_profile("nsls2", username=None)["cms/migration"]
 
 db = Broker(tiled_reading_client)  # Keep for backcompatibility with older code that uses databroker
 
@@ -81,6 +82,12 @@ def proposal_path():
 
 def assets_path():
     return proposal_path() + "assets/"
+
+def bluesky_path(file=None):
+    if file is not None:
+        return f"/nsls2/data3/cms/shared/config/bluesky/profile_collection/startup/{file}"
+    else:
+        return f"/nsls2/data3/cms/shared/config/bluesky/profile_collection/startup/"
 
 #swap users 
 from nslsii.sync_experiment import switch_redis_proposal

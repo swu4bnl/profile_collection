@@ -337,8 +337,11 @@ bim5y = EpicsMotor("XF:11BMB-BI{IM:5-Ax:Y}Mtr", name="bim5y")
 # beamline_stage is defined by the current sample stage. 'default' is the regular vacuum chamber
 #'open_WAXS' is the alternative stage position with Pilatus300k as the WAXS detector.
 if beamline_stage == "default":
-    smx = EpicsMotor("XF:11BMB-ES{Chm:Smpl-Ax:X}Mtr", name="smx")
-    smy = EpicsMotor("XF:11BMB-ES{Chm:Smpl-Ax:Z}Mtr", name="smy")
+    # smx = EpicsMotor("XF:11BMB-ES{Chm:Smpl-Ax:X}Mtr", name="smx")
+
+    smx = EpicsMotor("XF:11BMB-ES{Chm:Smpl2-Ax:X}Mtr", name="smx") # change to ESP302 and hardware IOC2, by RL at 20260313
+     
+    smy = EpicsMotor("XF:11BMB-ES{Chm:Smpl-Ax:Y}Mtr", name="smy")
     # 2023-Sep-12, change sth and schi back to original setting
     sth = EpicsMotor("XF:11BMB-ES{Chm:Smpl-Ax:theta}Mtr", name="sth")
     schi = EpicsMotor("XF:11BMB-ES{Chm:Smpl-Ax:chi}Mtr", name="schi")
@@ -347,9 +350,11 @@ if beamline_stage == "default":
     # schi = EpicsMotor('XF:11BMB-ES{Chm:Smpl-Ax:theta}Mtr', name='schi')
 
 elif beamline_stage == "open_MAXS":
-    smx = EpicsMotor("XF:11BMB-ES{Chm:Smpl2-Ax:X}Mtr", name="smx")
+    # smx = EpicsMotor("XF:11BMB-ES{Chm:Smpl2-Ax:X}Mtr", name="smx")
+    #changed by RL at 20260312 to change to a temporary stage (borrowed from IXS) for open area. 
+    smx = EpicsMotor("XF:11BMB-ES{Chm:Smpl3-Ax:X}Mtr", name="smx") 
     smy = EpicsMotor("XF:11BMB-ES{Chm:Smpl2-Ax:Y}Mtr", name="smy")
-    smz = EpicsMotor("XF:11BMB-ES{Chm:Smpl2-Ax:Z}Mtr", name="smz")
+    # smz = EpicsMotor("XF:11BMB-ES{Chm:Smpl2-Ax:Z}Mtr", name="smz")
     # sth = EpicsMotor('XF:11BMB-ES{SM:2-Ax:theta}Mtr', name='sth')
     # schi = EpicsMotor('XF:11BMB-ES{SM:2-Ax:chi}Mtr', name='schi')
     # swap sth and schi at 082219 by RL
@@ -509,6 +514,23 @@ def wGONIO():
     print("strans2 = {}".format(strans2.position))
     print("stilt = {}".format(stilt.position))
     print("stilt2 = {}".format(stilt2.position))
+
+#Add by RL 2026/03/28
+def s5in():
+    camy_position = camy.position
+    if abs(camy.position-75) < 5:
+        print('camy is moving back to beam position.')
+        camy.mov(camy_position - 75)
+    else:
+        print('ERROR: camy is too low/high.')
+
+def s5out():
+    camy_position = camy.position
+    if abs(camy.position) < 5:
+        print('camy is in beam position. Moving out now.')
+        camy.mov(camy_position + 75)
+    else:
+        print('ERROR: camy is too low/high.')
 
 #Add by Siyu 2025/04/14
 
