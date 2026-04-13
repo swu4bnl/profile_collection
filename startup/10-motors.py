@@ -471,6 +471,14 @@ TABLEr = EpicsMotor("XF:11BMB-ES{Tbl:Rear-Ax:Z}Mtr", name="TABLEr")
 TABLEn = EpicsMotor("XF:11BMB-ES{Tbl:Near-Ax:Z}Mtr", name="TABLEn")
 TABLEd = EpicsMotor("XF:11BMB-ES{Tbl:End-Ax:Z}Mtr", name="TABLEd")
 
+
+# Stages for 1D Focusing Mirror --- Mdrive-01 -- 04/06/2026
+
+EllipMir_pitch = EpicsMotor("XF:11BM1-OP{MDrive:1}Mtr", name="EllipMirPitch") 
+EllipMir_z = EpicsMotor("XF:11BM1-OP{MDrive:2}Mtr", name="EllipMirZ")
+EllipMir_x = EpicsMotor("XF:11BM1-OP{MDrive:3}Mtr", name="EllipMirX")
+
+
 # For MDrive (X, Y, edited by YZ, 20230920)
 #mdx = EpicsMotor("XF:11BM-ES{Mdrive-Ax:X}Mtr", name="mdx")
 #mdy = EpicsMotor("XF:11BM-ES{Mdrive-Ax:Y}Mtr", name="mdy")
