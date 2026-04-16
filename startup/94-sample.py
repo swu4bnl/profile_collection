@@ -2003,7 +2003,7 @@ class Sample_Generic(CoordinateSystem):
         # --- End legacy logic ---
         return detector.cam.acquire_time.get()
 
-    def expose(self, exposure_time=None, extra=None, handlefile=True, verbosity=3, poling_period=0.1, **md):
+    def expose(self, exposure_time=None, extra=None, handlefile=True, datasecurity=True, verbosity=3, poling_period=0.1, **md):
         """Internal function that is called to actually trigger a measurement."""
         """TODO: **md doesnot work in RE(count). """
 
@@ -2047,9 +2047,9 @@ class Sample_Generic(CoordinateSystem):
         start_time = time.time()
 
         # md_current = self.get_md()
-        md["beam_int_bim3"] = beam.bim3.flux(verbosity=0)
-        md["beam_int_bim4"] = beam.bim4.flux(verbosity=0)
-        md["beam_int_bim5"] = beam.bim5.flux(verbosity=0)
+        # md["beam_int_bim3"] = beam.bim3.flux(verbosity=0)
+        # md["beam_int_bim4"] = beam.bim4.flux(verbosity=0)
+        # md["beam_int_bim5"] = beam.bim5.flux(verbosity=0)
 
         if 'temperature_Linkam' in self.naming_scheme:
             md["temperature_Linkam"] = LThermal.temperature()
@@ -2139,7 +2139,9 @@ class Sample_Generic(CoordinateSystem):
                 md["filename"] = self.get_savename()
                 self.handle_file(detector, extra=extra, verbosity=verbosity, **md)
                 # self.handle_file(detector, extra=extra, verbosity=verbosity)
-                # self.handle_file_datasecurity(detector, extra=extra, verbosity=verbosity, **md)
+
+                if datasecurity:
+                    self.handle_file_datasecurity(detector, extra=extra, verbosity=verbosity, **md)
 
     '''
     # def _expose_test(self, exposure_time=None, extra=None, handlefile=True, verbosity=3, poling_period=0.1, **md):
@@ -2336,6 +2338,7 @@ class Sample_Generic(CoordinateSystem):
             #     if not os.path.isfile(os.readlink(link_name)): #added by RL, 20231109
             #         raise ValueError('NO IMAGE OUTPUT.')
 
+    #handle_file after datasecurity, saving data in /profile_collections/users/
     def handle_file_datasecurity(self, detector, extra=None, verbosity=3, subdirs=True, linksave=True, **md):
         subdir = ""
         if subdirs:
@@ -2374,16 +2377,20 @@ class Sample_Generic(CoordinateSystem):
             # link_name = '{}/{}{}'.format(RE.md['experiment_alias_directory'], subdir, md['filename'])
             # savename = md['filename'][:-5]
 
-            # savename = self.get_savename(savename_extra=extra)
-            savename = md["filename"]
+            savename = self.get_savename(savename_extra=extra)
+            link_name = savename + '_' + str(RE.md['scan_id']-1) + '_' + detname + '.tiff'
+            # savename = md["filename"]
+            # link_name = md["filename"] + '_' + str(RE.md['scan_id']-1) + '_' + detname + '.tiff'
 
-            link_name = savename + '_000000_' + detname + '.tiff'
-            link_folder = RE.md["userpy_alias_directory"] + '/' + detname + '/raw/' 
+            print(link_name)
+            link_folder = RE.md["userpy_alias_directory"] + '/' + RE.md['experiment_alias_directory'] + '/' + subdir 
             if os.path.exists(link_folder) == False:
                 os.makedirs(link_folder)
 
             os.symlink(filename, link_folder+link_name)
 
+
+            # =====================================================
             # # link_name = '{}/{}{}_{:04d}_maxs.tiff'.format(RE.md['experiment_alias_directory'], subdir, savename, RE.md['scan_id']-1)
             # link_name = "{}/{}{}_000000_{}.tiff".format(RE.md["userpy_alias_directory"], subdir, savename, detname).replace('//','/')
             # if 'camera' in detector.name:
@@ -2391,6 +2398,28 @@ class Sample_Generic(CoordinateSystem):
             print(f"  A symlink will be created at: {link_folder}experiments/{link_name}")
             
 
+            # if True:
+            #     # self.set_attribute('exposure_time', caget('XF:11BMB-ES{Det:PIL2M}:cam1:AcquireTime'))
+            #     self.set_attribute("exposure_time", detector.cam.acquire_time.get())  # RL, 20210831
+
+            #     # Create symlink
+            #     # link_name = '{}/{}{}'.format(RE.md['experiment_alias_directory'], subdir, md['filename'])
+            #     # savename = md['filename'][:-5]
+
+            #     # savename = self.get_savename(savename_extra=extra)
+            #     savename = md["filename"]
+            #     link_name = "{}/{}{}_saxs.tiff".format(RE.md["experiment_alias_directory"], subdir, savename)
+            #     # link_name = '{}/{}{}_{:04d}_saxs.tiff'.format(RE.md['experiment_alias_directory'], subdir, savename, RE.md['scan_id']-1)
+
+            #     if os.path.isfile(link_name):
+            #         i = 1
+            #         while os.path.isfile("{}.{:d}".format(link_name, i)):
+            #             i += 1
+            #         os.rename(link_name, "{}.{:d}".format(link_name, i))
+            #     os.symlink(filename, link_name)
+
+            #     if verbosity >= 3:
+            #         print("  Data linked as: {}".format(link_name))
                     
 
 
@@ -2415,7 +2444,7 @@ class Sample_Generic(CoordinateSystem):
 
         # return filenames
 
-
+    #before data security @ 2025-3
     def _old_handle_file(self, detector, extra=None, verbosity=3, subdirs=True, linksave=True, **md):
         subdir = ""
 
