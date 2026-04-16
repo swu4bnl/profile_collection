@@ -973,7 +973,7 @@ class SampleGISAXS_Generic(Sample_Generic):
             # detselect(pilatus300)
             detselect(pilatus2M)
             for detector in get_beamline().detector:
-                if detector.name == "pilatus2M":
+                if detector.name == "pilatus2m-1":
                     RE(detector.setExposureTime(self.md["exposure_time"]))
                 else:
                     detector.setExposureTime(self.md["exposure_time"])
@@ -1291,18 +1291,23 @@ class SampleXR_WAXS(SampleGISAXS_Generic):
         output_data = self.XR_data_output(direct_beam_slot, exposure_time)
         # output_data = output_data.iloc[0:0]
 
+        # create data directory if not exist
+        (Path(os.path.dirname(__file__))/'data').mkdir(exist_ok=True)
         # create a data file to save the XRR data
         if output_file is None:
             header = db[-1]
             # XR_FILENAME='{}/data/{}.csv'.format(os.path.dirname(__file__) , header.get('start').get('scan_id')+1)
             # XR_FILENAME='{}/data/{}.csv'.format(header.start['experiment_alias_directory'], header.get('start').get('scan_id')+1)
             # XR_FILENAME='{}/data/{}_{}.csv'.format(header.start['experiment_alias_directory'],header.start['sample_name'], header.get('start').get('scan_id')+1)
+            # XR_FILENAME = "{}/data/{}.csv".format(
+            #     header.start["experiment_alias_directory"], header.start["filename"]
+            # )
             XR_FILENAME = "{}/data/{}.csv".format(
-                header.start["experiment_alias_directory"], header.start["filename"]
+                os.path.dirname(__file__), header.start["filename"]
             )
             print("FILENAME= {}".format(XR_FILENAME))
         else:
-            XR_FILENAME = "{}/data/{}.csv".format(header.start["experiment_alias_directory"], output_file)
+            XR_FILENAME = "{}/data/{}.csv".format(os.path.dirname(__file__), output_file)
         
         if verbosity>=5:
             theta_output_data = pds.DataFrame([])
@@ -1390,7 +1395,7 @@ class SampleXR_WAXS(SampleGISAXS_Generic):
                         print("The theta is {}\n".format(theta))
                         if verbosity>=5:
                             THETA_FILENAME = "{}/data/Theta_profile_{}.csv".format(
-                                header.start["experiment_alias_directory"], header.start["filename"]
+                                os.path.dirname(__file__), header.start["filename"]
                             )
 
                             theta_temp_output = {'a_scanID':db[-1].start["scan_id"]+1, "b_theta": theta }
@@ -1458,7 +1463,7 @@ class SampleXR_WAXS(SampleGISAXS_Generic):
 
         bec.enable_plots()
         bec.enable_table()
-        pilatus_name.hints = {"fields": ["pilatus800_stats3_total", "pilatus800_stats4_total"]}
+        pilatus_name.hints = {"fields": ["pilatus800k-1_stats3_total", "pilatus800k-1_stats4_total"]}
 
     def XR_data_output(self, slot_pos, exposure_time):
         """XRR data output in DataFrame format, including:
@@ -1496,9 +1501,12 @@ class SampleXR_WAXS(SampleGISAXS_Generic):
         qz = 4 * np.pi * np.sin(np.deg2rad(sth_pos)) / h.start["calibration_wavelength_A"]
         scan_id = h.start["scan_id"]
         I0 = h.start["beam_int_bim5"]  # beam intensity from bim5
-        I1 = dtable.pilatus800_stats1_total
-        I2 = dtable.pilatus800_stats2_total
-        I3 = 2 * dtable.pilatus800_stats1_total - dtable.pilatus800_stats2_total
+        # I1 = dtable.pilatus800_stats1_total
+        # I2 = dtable.pilatus800_stats2_total
+        # I3 = 2 * dtable.pilatus800_stats1_total - dtable.pilatus800_stats2_total
+        I1 = dtable['pilatus800k-1_stats1_total']
+        I2 = dtable['pilatus800k-1_stats2_total']
+        I3 = 2 * I1 - I2
         In = I3 / beam.absorber_transmission_list[slot_pos] / exposure_time
 
         current_data = {
@@ -1764,12 +1772,13 @@ class SampleXR_WAXS(SampleGISAXS_Generic):
             # XR_FILENAME='{}/data/{}.csv'.format(os.path.dirname(__file__) , header.get('start').get('scan_id')+1)
             # XR_FILENAME='{}/data/{}.csv'.format(header.start['experiment_alias_directory'], header.get('start').get('scan_id')+1)
             th2th_FILENAME = "{}/data/{}_{}.csv".format(
-                header.start["experiment_alias_directory"],
+                # header.start["experiment_alias_directory"],
+                os.path.dirname(__file__),
                 header.start["sample_name"],
                 header.get("start").get("scan_id") + 1,
             )
         else:
-            th2th_FILENAME = "{}/data/{}.csv".format(header.start["experiment_alias_directory"], output_file)
+            th2th_FILENAME = "{}/data/{}.csv".format(os.path.dirname(__file__), output_file)
 
         # load theta positions in scan
         if scan_type == "theta_scan":
@@ -2386,16 +2395,8 @@ class CapillaryHolder(PositionalHolder):
         # slot 15; smx = -61.94
 
         # Set the x and y origin to be the center of slot 8
-        # self.xsetOrigin(-16.7)
-        # self.ysetOrigin(-2.36985)
-        # self.ysetOrigin(-2.36985)
-        # self.xsetOrigin(-16.7+-0.3)
-        # self.ysetOrigin(-1.8)
-        # self.xsetOrigin(-17.2)
-
-
-        self.ysetOrigin(-5)
-        self.xsetOrigin(-16) #as of 06/15/2025 --Siyu
+        self.ysetOrigin(-4.1)
+        self.xsetOrigin(-16.81) #as of 01/22/2026 --Siyu
 
 
         self.mark("right edge", x=+54.4)
@@ -2577,8 +2578,8 @@ class CapillaryHolderThreeRows(CapillaryHolder):
 
         self._positional_axis = ["x", "y"]
 
-        self._axes["y"].origin = -1.8  # The origin is the #8 hole in the top row
-        self._axes["x"].origin = -16.9
+        self._axes["y"].origin = -4.2  # The origin is the #8 hole in the top row
+        self._axes["x"].origin = -16.558 # as of 09/19/2025 -- Siyu
 
         self.x_spacing = 6.342  # 3.5 inches / 14 spaces
         self.y_spacing = 0.25 * 25.4  # 2.5 inches / 14 spaces
@@ -3355,7 +3356,7 @@ class InstecStage60(CapillaryHolder):
 
         # dump all the (seconds, degC) data into a file; use filename like "<sam.name>_tscan_<first_ID>-<last_ID>.csv" under *user/tscan directory
         self.tscan_filename = "{}/tscan/{}_tscan_{}.csv".format(
-            RE.md["experiment_alias_directory"], self.name, RE.md["scan_id"]
+            os.path.dirname(__file__), self.name, RE.md["scan_id"]
         )
         self.tscan_data = pds.DataFrame(columns=["scan_id", "degC", "seconds"])
         # f=open(filename,'w')

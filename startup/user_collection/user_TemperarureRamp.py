@@ -858,7 +858,7 @@ RE.md["experiment_proposal_number"] = "303632"
 RE.md["experiment_SAF_number"] = "304391"
 RE.md["experiment_user"] = "various"
 RE.md["experiment_type"] = "TSAXS"  # TSAXS, GISAXS, GIWAXS, etc.
-RE.md["experiment_project"] = "Crystallization at L/L interface"
+# RE.md["experiment_project"] = "Crystallization at L/L interface"
 
 
 if False:

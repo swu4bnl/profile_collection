@@ -3043,7 +3043,7 @@ class CMS_Beamline(Beamline):
 
         return md_current
 
-    def setMetadata(self, verbosity=3):
+    def _setMetadata(self, verbosity=3):
         """Guides the user through setting some of the required and recommended
         meta-data fields."""
 
@@ -3079,7 +3079,7 @@ class CMS_Beamline(Beamline):
             ["experiment_SAF_number", "SAF number"],
             ["experiment_group", "User group (e.g. PI)"],
             ["experiment_user", "The specific user/person running the experiment"],
-            ["experiment_project", "Project name/code"],
+            # ["experiment_project", "Project name/code"],
             ["experiment_alias_directory", "Alias directory"],
             [
                 "experiment_type",
@@ -3129,6 +3129,110 @@ class CMS_Beamline(Beamline):
             print(
                 "/n The folder ::: {} ::: has been made for users. /n".format(RE.md["experiment_alias_directory"])
             )
+
+    def setMetadata(self, verbosity=3):
+        """Guides the user through setting some of the required and recommended
+        meta-data fields."""
+
+        if verbosity >= 3:
+            print("This will guide you through adding some meta-data for the upcoming experiment.")
+        if verbosity >= 4:
+            print(
+                "You can accept default values (shown in square [] brackets) by pressing enter. You can leave a value blank (or put a space) to skip that entry."
+            )
+
+        # Set some values automatically
+        month = int(time.strftime("%m"))
+        if month <= 4:
+            cycle = 1
+        elif month <= 8:
+            cycle = 2
+        else:
+            cycle = 3
+        RE.md["experiment_cycle"] = "{:s}_{:d}".format(time.strftime("%Y"), cycle)
+
+        RE.md["calibration_energy_keV"] = float(round(self.beam.energy(verbosity=0), 3))
+        RE.md["calibration_wavelength_A"] = float(round(self.beam.wavelength(verbosity=0), 5))
+
+        # TODO:
+        # RE.md['calibration_detector_distance_m'] =
+        # RE.md['calibration_detector_x0'] =
+        # RE.md['calibration_detector_y0'] =
+
+        # Ask the user some questions
+
+        questions = [
+            # ["experiment_proposal_number", "Proposal number"],
+            ["experiment_SAF_number", "SAF number"],
+            ["experiment_group", "User group (e.g. PI)"],
+            ["experiment_user", "The specific user/person running the experiment"],
+            # ["experiment_project", "Project name/code"],
+            ["userpy_alias_directory", "UserPy Alias directory"],
+            ["experiment_alias_directory", "Experiment Alias directory"],
+            [
+                "experiment_type",
+                "Type of experiments/measurements (SAXS, GIWAXS, etc.)",
+            ],
+        ]
+
+        # TBD:
+        # Path where data will be stored?
+
+        self._dialog_total_questions = len(questions)
+        self._dialog_question_number = 1
+
+        for key, text in questions:
+            try:
+                self._ask_question(key, text)
+            except KeyboardInterrupt:
+                return
+
+        if verbosity >= 4:
+            print("You can also add/edit metadata directly using the RE.md object.")
+
+        #RE.md["userpy_alias_directory"] = '/home/xf11bm/.ipython/profile_collection/users/2025-2/TKoga'
+        if os.path.exists(RE.md["userpy_alias_directory"]):
+            print("/n The folder has existed. Please change folder name if necessary./n")
+        else:
+            os.makedirs(RE.md["userpy_alias_directory"], exist_ok=True)
+
+        #for double-checking folders
+        #/nsls2//data/cms/shared/config/bluesky/profile_collection/users/        
+        print('user.py will be saved in folder: {}'.format(RE.md["userpy_alias_directory"]))
+        print('data will be saved in folder: {}'.format(RE.md["experiment_alias_directory"]))
+        print('redo cms.setMeadata() if any folder is wrong! ')
+
+        # sam=Sample('test')
+        # detSelect(fs6)
+        # sam.measure(.1)
+
+        # if os.path.exists(RE.md["experiment_alias_directory"]):
+        #     print("/n The folder has existed. Please change folder name if necessary./n")
+        # else:
+        #     os.makedirs(RE.md["experiment_alias_directory"], exist_ok=True)
+            # os.makedirs(os.path.join(RE.md["experiment_alias_directory"], "waxs"), exist_ok=True)
+            # os.makedirs(
+            #     os.path.join(RE.md["experiment_alias_directory"], "waxs/raw"),
+            #     exist_ok=True,
+            # )
+            # os.makedirs(
+            #     os.path.join(RE.md["experiment_alias_directory"], "waxs/analysis"),
+            #     exist_ok=True,
+            # )
+            # os.makedirs(os.path.join(RE.md["experiment_alias_directory"], "saxs"), exist_ok=True)
+            # os.makedirs(
+            #     os.path.join(RE.md["experiment_alias_directory"], "saxs/raw"),
+            #     exist_ok=True,
+            # )
+            # os.makedirs(
+            #     os.path.join(RE.md["experiment_alias_directory"], "saxs/analysis"),
+            #     exist_ok=True,
+            # )
+        # os.makedirs(os.path.join(RE.md["experiment_alias_directory"], "data"), exist_ok=True)
+            # os.makedirs(os.path.join(RE.md['experiment_alias_directory'], 'saxs'), exist_ok=True)
+        # print(
+        #         "/n The folder ::: {} ::: has been made for users. /n".format(RE.md["experiment_alias_directory"])
+        #     )
 
     def _ask_question(self, key, text, default=None):
         if default is None and key in RE.md:
@@ -3350,13 +3454,13 @@ class CMS_Beamline_GISAXS(CMS_Beamline):
         The size is changed to [10, 4] for possible beam drift during a user run (changed at 08/16/17)
         """
 
-        if pilatus_name.name == "pilatus2M":
+        if pilatus_name.name == "pilatus2m-1":
             detector = self.SAXS
             # These positions are updated based on current detector position
             det_md = detector.get_md()
             x0 = det_md["detector_SAXS_x0_pix"]
             y0 = det_md["detector_SAXS_y0_pix"]
-        if pilatus_name.name == "pilatus800":
+        if pilatus_name.name == "pilatus800k-1":
             detector = self.WAXS
 
             # These positions are updated based on current detector position
@@ -3385,13 +3489,13 @@ class CMS_Beamline_GISAXS(CMS_Beamline):
         The size argument controls the size (in pixels) of the ROI itself
         (in the format [width, height]). A size=[6,2] is reasonable."""
 
-        if pilatus_name.name == "pilatus2M":
+        if pilatus_name.name == "pilatus2m-1":
             detector = self.SAXS
             # These positions are updated based on current detector position
             det_md = detector.get_md()
             x0 = det_md["detector_SAXS_x0_pix"]
             y0 = det_md["detector_SAXS_y0_pix"]
-        if pilatus_name.name == "pilatus800":
+        if pilatus_name.name == "pilatus800k-1":
             detector = self.WAXS
 
             # These positions are updated based on current detector position
@@ -3438,13 +3542,13 @@ class CMS_Beamline_GISAXS(CMS_Beamline):
         The size argument controls the size (in pixels) of the ROI itself
         (in the format [width, height]). A size=[6,2] is reasonable."""
 
-        if pilatus_name.name == "pilatus2M":
+        if pilatus_name.name == "pilatus2m-1":
             detector = self.SAXS
             # These positions are updated based on current detector position
             det_md = detector.get_md()
             x0 = det_md["detector_SAXS_x0_pix"]
             y0 = det_md["detector_SAXS_y0_pix"]
-        if pilatus_name.name == "pilatus800":
+        if pilatus_name.name == "pilatus800k-1":
             detector = self.WAXS
 
             # These positions are updated based on current detector position
@@ -3521,14 +3625,14 @@ class CMS_Beamline_GISAXS(CMS_Beamline):
         y_offset_pix = y_offset_mm / pixel_size
 
         # for pilatus800k
-        if pilatus_name.name == "pilatus800":
+        if pilatus_name.name == "pilatus800k-1":
             y_pos = int(y0 - size[1] / 2 - y_offset_pix)
 
         # for pilatus2M, placed up-side down
         # y_pos = int( y0 - size[1]/2 + y_offset_pix )
 
         # for pilatus2M, with pattern rotated 180deg. changed at 052918
-        if pilatus_name.name == "pilatus2M":
+        if pilatus_name.name == "pilatus2m-1":
             y_pos = int(y0 - size[1] / 2 - y_offset_pix)
 
         # y pixels for intermodule gaps, for pilatus2M (195 pixels high module, 17 pixels high gap)

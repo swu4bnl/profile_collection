@@ -122,6 +122,16 @@ def ave_mir_x():
     return ave_x
 
 
+def get_mir_yaw():
+    '''calculate the yaw angle of the toroidal mirror in [mrad]'''
+    usx = mir_usx.user_readback.value 
+    dsx = mir_dsx.user_readback.value
+    alpha_rad = np.arctan((dsx-usx)/mir_us_to_ds/1000)
+    alpah_deg = np.rad2deg(alpha_rad)
+    print(f"The yaw angle of the toroidal mirror is {alpha_rad*1e3: .4f} mrad, equal to {alpah_deg: .4f} deg.")
+    return alpha_rad*1e3
+    
+
 def get_mir_angle():
     '''calculate the incident angle of the toroidal mirror in [mrad]'''
     usy = mir_usy.user_readback.value 

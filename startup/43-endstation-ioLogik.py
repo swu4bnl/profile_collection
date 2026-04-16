@@ -1,3 +1,5 @@
+print(f'Loading {__file__}')
+
 import time
 from ophyd import Device
 
@@ -731,6 +733,162 @@ class Chiller(Device):
         return self.ChillerSetpoint.get()
 
 
+
+
+# class ioLogik7(Device, channel):
+#     # On/Off:   XF:11BM-ES{DM1-IOL1:E1213}:DO1-Cmd
+#     # Setpoint: XF:11BM-ES{DM1-IOL1:E1213}:DO1-Sts
+
+#     """An ophyd wrapper for TTL generator by Moxa E1213
+
+#     """
+
+#     channel_cmd = 'D0' + channel + '_Cmd'
+#     channel_sts = 'D0' + channel + '_Sts'
+
+#     # cmd = Cpt(EpicsSignal, "DO1-Cmd")
+#     # sts = Cpt(EpicsSignal, "DO1-Sts")
+
+#     def on(self):        
+#         self.cmd.put(1)
+
+#     def off(self):
+#         self.cmd.put(0)
+
+#     def _on(self):
+#         return (yield from mv(self.cmd, 1))
+
+#     def _off(self):
+#         return (yield from mv(self.cmd, 0))
+
+
+class S4Dev(Device):
+    # On/Off:   XF:11BM-ES{DM1-IOL1:E1213}:DO1-Cmd
+    # Setpoint: XF:11BM-ES{DM1-IOL1:E1213}:DO1-Sts
+
+    """An ophyd wrapper for Sorrenson XG40 power supply
+
+    """
+
+    S4Dev_in = EpicsSignal("XF:11BM-ES{DM1-IOL1:E1213}:DO2-Cmd", name="S4Dev_in")
+    S4Dev_out = EpicsSignal("XF:11BM-ES{DM1-IOL1:E1213}:DO1-Cmd", name="S4Dev_out")
+
+    S4Dev_in_sts = EpicsSignal("XF:11BM-ES{DM1-IOL1:E1213}:DO2-Sts", name="S4Dev_in_sts")
+    S4Dev_out_sts = EpicsSignal("XF:11BM-ES{DM1-IOL1:E1213}:DO1-Sts", name="S4Dev_out_sts")
+
+    def on(self):
+        self.S4Dev_in.put(1)
+        self.S4Dev_out.put(0)
+
+    def off(self):
+        self.S4Dev_in.put(0)
+        self.S4Dev_out.put(1)
+
+    def _on(self):
+        yield from mv(self.S4Dev_in, 1)
+        yield from mv(self.S4Dev_out, 0)
+
+    def _off(self):
+        yield from mv(self.S4Dev_in, 0)
+        yield from mv(self.S4Dev_out, 1)
+
+    def state(self, verbosity=3):
+        if S4Dev_out_sts.get()==1 and S4Dev_in_sts.get()==0:
+            if verbosity>=3:
+                print('S4 is OUT.')
+            return False
+        elif S4Dev_out_sts.get()==0 and S4Dev_in_sts.get()==1:
+            if verbosity>=3:
+                print('S4 is IN.')      
+            return True 
+        
+class ICDev(Device):
+    # On/Off:   XF:11BM-ES{DM1-IOL1:E1213}:DO1-Cmd
+    # Setpoint: XF:11BM-ES{DM1-IOL1:E1213}:DO1-Sts
+
+    """An ophyd wrapper for Sorrenson XG40 power supply
+
+    """
+    # ICDev_in_cmd = Cpt(EpicsSignal, "DO4-Cmd")
+    # ICDev_in_sts = Cpt(EpicsSignal, "DO4-Sts")
+
+    # ICDev_out_cmd = Cpt(EpicsSignal, "DO3-Cmd")
+    # ICDev_out_sts = Cpt(EpicsSignal, "DO3-Sts")
+
+
+    ICDev_in = EpicsSignal("XF:11BM-ES{DM1-IOL1:E1213}:DO4-Cmd", name="ICDev_in")
+    ICDev_out = EpicsSignal("XF:11BM-ES{DM1-IOL1:E1213}:DO3-Cmd", name="ICDev_out")
+
+    ICDev_in_sts = EpicsSignal("XF:11BM-ES{DM1-IOL1:E1213}:DO4-Sts", name="ICDev_in_sts")
+    ICDev_out_sts = EpicsSignal("XF:11BM-ES{DM1-IOL1:E1213}:DO3-Sts", name="ICDev_out_sts")
+
+    def on(self):
+        self.ICDev_in.put(1)
+        self.ICDev_out.put(0)
+
+    def off(self):
+        self.ICDev_in.put(0)
+        self.ICDev_out.put(1)
+
+    def _on(self):
+        yield from mv(self.ICDev_in, 1)
+        yield from mv(self.ICDev_out, 0)
+
+    def _off(self):
+        yield from mv(self.ICDev_in, 0)
+        yield from mv(self.ICDev_out, 1)
+
+    def state(self, verbosity=3):
+        if ICDev_out_sts.get()==1 and ICDev_in_sts.get()==0:
+            if verbosity>=3:
+                print('IC is OUT.')
+            return False
+        elif ICDev_out_sts.get()==0 and ICDev_in_sts.get()==1:
+            if verbosity>=3:
+                print('IC is IN.')      
+            return True 
+
+class BPMDev(Device):
+    # On/Off:   XF:11BM-ES{DM1-IOL1:E1213}:DO1-Cmd
+    # Setpoint: XF:11BM-ES{DM1-IOL1:E1213}:DO1-Sts
+
+    """An ophyd wrapper for Sorrenson XG40 power supply
+
+    """
+
+    BPMDev_in = EpicsSignal("XF:11BM-ES{DM1-IOL1:E1213}:DO6-Cmd", name="BPMDev_in")
+    BPMDev_out = EpicsSignal("XF:11BM-ES{DM1-IOL1:E1213}:DO5-Cmd", name="BPMDev_out")
+
+    BPMDev_in_sts = EpicsSignal("XF:11BM-ES{DM1-IOL1:E1213}:DO6-Sts", name="BPMDev_in_sts")
+    BPMDev_out_sts = EpicsSignal("XF:11BM-ES{DM1-IOL1:E1213}:DO5-Sts", name="BPMDev_out_sts")
+
+    def on(self):
+        self.BPMDev_in.put(1)
+        self.BPMDev_out.put(0)
+
+    def off(self):
+        self.BPMDev_in.put(0)
+        self.BPMDev_out.put(1)
+
+    def _on(self):
+        yield from mv(self.BPMDev_in, 1)
+        yield from mv(self.BPMDev_out, 0)
+
+    def _off(self):
+        yield from mv(self.BPMDev_in, 0)
+        yield from mv(self.BPMDev_out, 1)
+
+    def state(self, verbosity=3):
+        if BPMDev_out_sts.get()==1 and BPMDev_in_sts.get()==0:
+            if verbosity>=3:
+                print('BPM is OUT.')
+            return False
+        elif BPMDev_out_sts.get()==0 and BPMDev_in_sts.get()==1:
+            if verbosity>=3:
+                print('BPM is IN.')      
+            return True 
+
+
 class Potentiostats(Device):
     """An ophyd wrapper for Biologic Potentiostats
     At CMS, there is only readout and trigger 
@@ -779,8 +937,47 @@ class Potentiostats(Device):
         else:
             return vol
 
-    
 
+# PV list of Moxa ioLogik:: AO, Analog Output
+class PowerDUnit(Device):
+    # def __init__(self, ii):
+    #     self.name = "AO_Chan{}".format(ii)
+        # self.sp = 'XF:11BM-ES{{Ecat:AO{}}}'.format(ii)
+        #XF:11BM1-CT{PDU:2}Sw:1-Sel
+        #XF:11BM1-CT{PDU:2}Sw:1-Sts
+
+        # self.sp = "XF:11BM1-CT{{PDU:2}}Sw:{}-Sel".format(ii)
+        # # self.sts = 'XF:11BMB-ES{}AO:{}-RB'.format('{IO}', ii)
+        # self.sts = "XF:11BM1-CT{{PDU:2}}Sw:{}-Sts".format(ii)
+        # self.PV = self.sp
+        # self.signal = EpicsSignal(self.PV)
+        # self.sts = 'XF:11BMB-ES{}AO:{}-RB'.format('{IO}', ii)
+    cmd = Cpt(EpicsSignal, "-Sel")
+    status = Cpt(EpicsSignal, "Sts")
+
+    def on(self):
+        self.cmd.put(1)
+
+    def off(self):
+        self.cmd.put(0)
+
+    def _on(self):
+        return (yield from mv(self.cmd, 1))
+
+    def _off(self):
+        return (yield from mv(self.cmd, 0))
+    
+pdu = {}
+
+prefix_pdu = "XF:11BM1-CT{PDU:2}Sw:"
+# pdu1 = PowerDUnit(prefix_pdu + '1', name="pdu1")
+
+for ii in range(9):
+    # if ii ==0:
+    #     pdu.append(0)
+    # else:
+    if ii>0:
+        pdu[ii] = PowerDUnit(prefix_pdu + str(ii), name="pdu{}".format(ii))
 
 
 prefix = "XF:11BMB-ES{PS:1}"
@@ -793,3 +990,10 @@ MFC = MassFlowControl()
 # MFC_dev = MassFlowControl_YF("XF:11BMB-ES", name='MFC')   
 
 BLP = Potentiostats(name="BLP") #BioLogic Potentiostats
+
+if beamline_stage != 'default':
+    s4d = S4Dev(name="s4d")
+
+ic = ICDev(name="ic")
+bpm = BPMDev(name="bpm")
+

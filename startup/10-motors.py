@@ -1,6 +1,9 @@
 print(f'Loading {__file__}')
 
-from ophyd import EpicsMotor, Device, Component as Cpt
+from ophyd import EpicsMotor, EpicsSignal, Device, Component as Cpt
+import json
+from pathlib import Path
+from datetime import datetime
 
 # slity = EpicsMotor('XF:11BMA-OP{Slt:0-Ax:T}Mtr', name='slity')
 
@@ -8,8 +11,8 @@ from ophyd import EpicsMotor, Device, Component as Cpt
 # class Slits(Device):
 #    top = Cpt(EpicsMotor, '-Ax:T}Mtr')
 #    bottom = Cpt(EpicsMotor, '-Ax:B}Mtr')
-#beamline_stage = "default"  #for AB, please also change Smpl2-Y from 3... to -5 
-beamline_stage = 'open_MAXS'
+beamline_stage = "default"  #for AB, please also change Smpl2-Y from 3... to -5 
+# beamline_stage = 'open_MAXS'
 # beamline_stage = 'BigHuber'
 
 print('Beamline_stage = {}'.format(beamline_stage))
@@ -22,13 +25,205 @@ print('Beamline_stage = {}'.format(beamline_stage))
 ###################################################################################
 
 
+########## Universal Configuration Management for Multi-Motor Devices ##########
+
+class Configurable:
+    """Mixin for multi-motor devices: save/load named positions and move motors.
+
+    Features:
+    - `get(name)` loads a saved position (no motion).
+    - `goto(name)` loads and moves all tracked motors to the saved values.
+    - `save_position(name)` stores the current motor positions under `name`.
+    - `mov(motor, value)` and `movr(motor, delta)` are short aliases for
+      absolute and relative motor movement.
+
+    Example:
+        # The s4 config contains: 'trans_inair', 'GI_inair', 'trans_vacuum',
+        # and 'GI_vacuum'. 
+        # Example usage for s4 (a MotorCenterAndGap instance):
+
+        s4.show_position()                   # print current positions
+        s4.goto('trans_inair')               # move s4 to the 'trans_inair' set
+        s4.save_position('test')             # save current position as 'test'
+        s4.mov('xc', -1.48)                  # absolute move for a single axis
+        s4.movr('yg', 0.05)                  # relative move for a single axis
+
+    """
+    
+    _config_motors = []  # Override in device to specify which motors to track
+    _config_file = None  # Override to specify config file path
+    
+    def get(self, name):
+        """
+        Load a saved position configuration without moving motors.
+        
+        Args:
+            name: Position name to load
+            
+        Returns:
+            Dict with position data
+        """
+        return self.load_position(name)
+    
+    def goto(self, name):
+        """
+        Load a saved position and move all motors there.
+        
+        Args:
+            name: Position name to load and move to
+            
+        Usage:
+            s4.goto('open')  # Load and move s4 to 'open' position
+        """
+        positions_dict = self._load_config()
+        entries = positions_dict.get(name)
+        if entries and isinstance(entries, list):
+            target_positions = entries[-1]  # Get latest entry
+            print(f"Moving '{self.name}' to position '{name}'...")
+            for motor_name in self._config_motors:
+                if (hasattr(self, motor_name) and 
+                    motor_name in target_positions):
+                    motor = getattr(self, motor_name)
+                    target_value = target_positions[motor_name]
+                    motor.move(target_value)
+            self.show_position()
+        else:
+            print(f"No saved position found for '{name}'.")
+    
+    def _load_config(self):
+        """Load configuration from JSON file."""
+        if self._config_file is None:
+            self._config_file = Path(f'{self.name}_config.cfg')
+        
+        config_file = Path(self._config_file) if not isinstance(self._config_file, Path) else self._config_file
+        if config_file.exists():
+            with open(config_file, 'r') as f:
+                return json.load(f)
+        return {}
+    
+    def _save_config(self):
+        """Save configuration to JSON file."""
+        if self._config_file is None:
+            self._config_file = Path(f'{self.name}_config.cfg')
+        
+        config_file = Path(self._config_file) if not isinstance(self._config_file, Path) else self._config_file
+        with open(config_file, 'w') as f:
+            json.dump(self._positions, f, indent=2)
+    
+    def _sync(self):
+        """Synchronize internal position cache with actual motor positions."""
+        for motor_name in self._config_motors:
+            if hasattr(self, motor_name):
+                motor = getattr(self, motor_name)
+                setattr(self, f'_{motor_name}', motor.position)
+    
+    def _get_positions_dict(self):
+        """Get current positions as a dictionary."""
+        positions = {}
+        for motor_name in self._config_motors:
+            if hasattr(self, motor_name):
+                motor = getattr(self, motor_name)
+                positions[motor_name] = motor.position
+        return positions
+    
+    def load_position(self, name):
+        """Load a saved position configuration by name."""
+        positions = self._load_config()
+        entries = positions.get(name)
+        if entries:
+            latest = entries[-1]
+            print(f"Loaded position '{name}' from {latest.get('timestamp', 'unknown')}")
+            for motor_name in self._config_motors:
+                if motor_name in latest and hasattr(self, motor_name):
+                    motor = getattr(self, motor_name)
+                    setattr(self, f'_{motor_name}', latest[motor_name])
+            return latest
+        else:
+            print(f"No saved position found for '{name}'.")
+            return None
+    
+    def save_position(self, name):
+        """Save current position with a given name."""
+        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        entry = self._get_positions_dict()
+        entry['timestamp'] = timestamp
+        
+        positions = self._load_config()
+        positions.setdefault(name, []).append(entry)
+        self._positions = positions
+        self._save_config()
+        print(f"Saved position '{name}' at {timestamp}.")
+    
+    def show_position(self):
+        """Display current motor positions."""
+        self._sync()
+        print(f"Device '{self.name}' positions:")
+        for motor_name in self._config_motors:
+            if hasattr(self, motor_name):
+                motor = getattr(self, motor_name)
+                print(f"  {motor_name} = {motor.position}")
+    
+    def relative_move(self, motor_name, delta):
+        """Move a motor relative to current position."""
+        if motor_name not in self._config_motors or not hasattr(self, motor_name):
+            print(f"Invalid motor name: {motor_name}")
+            return
+        
+        motor = getattr(self, motor_name)
+        new_pos = motor.position + delta
+        motor.move(new_pos)
+        print(f"{motor_name} moved relatively by {delta} -> {new_pos}")
+    
+    def movr(self, motor_name, delta):
+        """Move a motor relative to current position (short alias)."""
+        return self.relative_move(motor_name, delta)
+    
+    def absolute_move(self, motor_name, value):
+        """Move a motor to an absolute position."""
+        if motor_name not in self._config_motors or not hasattr(self, motor_name):
+            print(f"Invalid motor name: {motor_name}")
+            return
+        
+        motor = getattr(self, motor_name)
+        motor.move(value)
+        print(f"{motor_name} moved to {value}")
+    
+    def mov(self, motor_name, value):
+        """Move a motor to an absolute position (short alias)."""
+        return self.absolute_move(motor_name, value)
+    
+    @staticmethod
+    def clear_config(config_file):
+        """Clear configuration, keeping only the latest entry for each position name."""
+        path = Path(config_file)
+        if path.exists():
+            with open(path, 'r') as f:
+                data = json.load(f)
+            for key in data:
+                if isinstance(data[key], list) and len(data[key]) > 0:
+                    data[key] = [data[key][-1]]
+            with open(path, 'w') as f:
+                json.dump(data, f, indent=2)
+            print(f"Configuration file '{config_file}' cleaned: only latest entries retained.")
+        else:
+            print(f"Config file '{config_file}' does not exist.")
+
+
 ########## motor classes ##########
-class MotorCenterAndGap(Device):
+class MotorCenterAndGap(Device, Configurable):
     "Center and gap using Epics Motor records"
     xc = Cpt(EpicsMotor, "-Ax:XC}Mtr")
     yc = Cpt(EpicsMotor, "-Ax:YC}Mtr")
     xg = Cpt(EpicsMotor, "-Ax:XG}Mtr")
     yg = Cpt(EpicsMotor, "-Ax:YG}Mtr")
+    
+    _config_motors = ['xc', 'yc', 'xg', 'yg']
+    
+    def __init__(self, *args, config_file=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        if config_file is not None:
+            self._config_file = Path(config_file)
+        self._positions = self._load_config()
 
 
 class Blades(Device):
@@ -88,11 +283,40 @@ s0 = Blades("XF:11BMA-OP{Slt:0", name="s0")
 
 ########## Endstation slits #########
 ## jj slits -- usage: s*.xc, s*.xg, s*.yc, s*.yg
-s1 = MotorCenterAndGap("XF:11BMB-OP{Slt:1", name="s1")
-s2 = MotorCenterAndGap("XF:11BMB-OP{Slt:2", name="s2")
-s3 = MotorCenterAndGap("XF:11BMB-OP{Slt:3", name="s3")
-s4 = MotorCenterAndGap("XF:11BMB-OP{Slt:4", name="s4")
-s5 = MotorCenterAndGap("XF:11BMB-OP{Slt:5", name="s5")
+
+# Option 1: Default behavior (config file = {device_name}_config.cfg in current directory)
+# s1 = MotorCenterAndGap("XF:11BMB-OP{Slt:1", name="s1")
+
+# Option 2: Custom config file for each slit (recommended for separate tracking)
+s1 = MotorCenterAndGap("XF:11BMB-OP{Slt:1", name="s1", config_file='cfg/s1_config.cfg')
+s2 = MotorCenterAndGap("XF:11BMB-OP{Slt:2", name="s2", config_file='cfg/s2_config.cfg')
+s3 = MotorCenterAndGap("XF:11BMB-OP{Slt:3", name="s3", config_file='cfg/s3_config.cfg')
+s4 = MotorCenterAndGap("XF:11BMB-OP{Slt:4", name="s4", config_file='cfg/s4_config.cfg')
+s5 = MotorCenterAndGap("XF:11BMB-OP{Slt:5", name="s5", config_file='cfg/s5_config.cfg')
+
+# Practical s4 examples (useful copy-paste snippets):
+# The file cfg/s4_config.cfg contains named sets: 'trans_inair', 'GI_inair',
+# 'trans_vacuum', and 'GI_vacuum'. Use these names with get/goto.
+# Show current positions:
+#     s4.show_position()
+# Load saved values without moving:
+#     data = s4.get('trans_inair')
+#     print('trans_inair:', data)
+# Move to a saved configuration (performs motion):
+#     s4.goto('trans_inair')
+# Move to the latest GI vacuum config (there are multiple saved entries):
+#     s4.goto('GI_vacuum')
+# Single-axis moves (no RE required):
+#     s4.mov('xc', -1.48)    # absolute
+#     s4.movr('yg', 0.05)    # relative
+
+# Option 3: Share one config file for all slits (if you prefer centralized tracking)
+# slits_config_file = 'cfg/slits_config.cfg'
+# s1 = MotorCenterAndGap("XF:11BMB-OP{Slt:1", name="s1", config_file=slits_config_file)
+# s2 = MotorCenterAndGap("XF:11BMB-OP{Slt:2", name="s2", config_file=slits_config_file)
+# s3 = MotorCenterAndGap("XF:11BMB-OP{Slt:3", name="s3", config_file=slits_config_file)
+# s4 = MotorCenterAndGap("XF:11BMB-OP{Slt:4", name="s4", config_file=slits_config_file)
+# s5 = MotorCenterAndGap("XF:11BMB-OP{Slt:5", name="s5", config_file=slits_config_file)
 
 # attenuators
 filters = {
@@ -113,8 +337,11 @@ bim5y = EpicsMotor("XF:11BMB-BI{IM:5-Ax:Y}Mtr", name="bim5y")
 # beamline_stage is defined by the current sample stage. 'default' is the regular vacuum chamber
 #'open_WAXS' is the alternative stage position with Pilatus300k as the WAXS detector.
 if beamline_stage == "default":
-    smx = EpicsMotor("XF:11BMB-ES{Chm:Smpl-Ax:X}Mtr", name="smx")
-    smy = EpicsMotor("XF:11BMB-ES{Chm:Smpl-Ax:Z}Mtr", name="smy")
+    # smx = EpicsMotor("XF:11BMB-ES{Chm:Smpl-Ax:X}Mtr", name="smx")
+
+    smx = EpicsMotor("XF:11BMB-ES{Chm:Smpl2-Ax:X}Mtr", name="smx") # change to ESP302 and hardware IOC2, by RL at 20260313
+     
+    smy = EpicsMotor("XF:11BMB-ES{Chm:Smpl-Ax:Y}Mtr", name="smy")
     # 2023-Sep-12, change sth and schi back to original setting
     sth = EpicsMotor("XF:11BMB-ES{Chm:Smpl-Ax:theta}Mtr", name="sth")
     schi = EpicsMotor("XF:11BMB-ES{Chm:Smpl-Ax:chi}Mtr", name="schi")
@@ -123,9 +350,11 @@ if beamline_stage == "default":
     # schi = EpicsMotor('XF:11BMB-ES{Chm:Smpl-Ax:theta}Mtr', name='schi')
 
 elif beamline_stage == "open_MAXS":
-    smx = EpicsMotor("XF:11BMB-ES{Chm:Smpl2-Ax:X}Mtr", name="smx")
+    # smx = EpicsMotor("XF:11BMB-ES{Chm:Smpl2-Ax:X}Mtr", name="smx")
+    #changed by RL at 20260312 to change to a temporary stage (borrowed from IXS) for open area. 
+    smx = EpicsMotor("XF:11BMB-ES{Chm:Smpl3-Ax:X}Mtr", name="smx") 
     smy = EpicsMotor("XF:11BMB-ES{Chm:Smpl2-Ax:Y}Mtr", name="smy")
-    smz = EpicsMotor("XF:11BMB-ES{Chm:Smpl2-Ax:Z}Mtr", name="smz")
+    # smz = EpicsMotor("XF:11BMB-ES{Chm:Smpl2-Ax:Z}Mtr", name="smz")
     # sth = EpicsMotor('XF:11BMB-ES{SM:2-Ax:theta}Mtr', name='sth')
     # schi = EpicsMotor('XF:11BMB-ES{SM:2-Ax:chi}Mtr', name='schi')
     # swap sth and schi at 082219 by RL
@@ -148,6 +377,11 @@ elif beamline_stage == "BigHuber":
     # # smx = EpicsMotor('XF:11BMB-ES{ESP:3-Ax:C1}Mtr', name='smx')
     sprayy = EpicsMotor("XF:11BMB-ES{Chm:Smpl2-Ax:X}Mtr", name="sprayy")
 
+#added in 10-27-2025 for telescoping flight path
+fpn = EpicsMotor("XF:11BM-ES{Mdrive-Ax:1}Mtr", name="fpn")
+fpr = EpicsMotor("XF:11BM-ES{Mdrive-Ax:2}Mtr", name="fpr")
+
+ 
 
 # goniometer
 smy2 = EpicsMotor("XF:11BMB-ES{Chm:Smpl-Ax:Y}Mtr", name="smy2")
@@ -237,6 +471,14 @@ TABLEr = EpicsMotor("XF:11BMB-ES{Tbl:Rear-Ax:Z}Mtr", name="TABLEr")
 TABLEn = EpicsMotor("XF:11BMB-ES{Tbl:Near-Ax:Z}Mtr", name="TABLEn")
 TABLEd = EpicsMotor("XF:11BMB-ES{Tbl:End-Ax:Z}Mtr", name="TABLEd")
 
+
+# Stages for 1D Focusing Mirror --- Mdrive-01 -- 04/06/2026
+
+EllipMir_pitch = EpicsMotor("XF:11BM1-OP{MDrive:1}Mtr", name="EllipMirPitch") 
+EllipMir_z = EpicsMotor("XF:11BM1-OP{MDrive:2}Mtr", name="EllipMirZ")
+EllipMir_x = EpicsMotor("XF:11BM1-OP{MDrive:3}Mtr", name="EllipMirX")
+
+
 # For MDrive (X, Y, edited by YZ, 20230920)
 #mdx = EpicsMotor("XF:11BM-ES{Mdrive-Ax:X}Mtr", name="mdx")
 #mdy = EpicsMotor("XF:11BM-ES{Mdrive-Ax:Y}Mtr", name="mdy")
@@ -281,12 +523,26 @@ def wGONIO():
     print("stilt = {}".format(stilt.position))
     print("stilt2 = {}".format(stilt2.position))
 
+#Add by RL 2026/03/28
+def s5in():
+    camy_position = camy.position
+    if abs(camy.position-75) < 5:
+        print('camy is moving back to beam position.')
+        camy.mov(camy_position - 75)
+    else:
+        print('ERROR: camy is too low/high.')
+
+def s5out():
+    camy_position = camy.position
+    if abs(camy.position) < 5:
+        print('camy is in beam position. Moving out now.')
+        camy.mov(camy_position + 75)
+    else:
+        print('ERROR: camy is too low/high.')
+
 #Add by Siyu 2025/04/14
 
-import json
 import time
-from pathlib import Path
-from datetime import datetime
 
 class Beamstop:
     def __init__(self, name, config_file='beamstop_config.cfg'):

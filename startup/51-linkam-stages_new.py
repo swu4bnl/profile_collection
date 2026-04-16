@@ -1,0 +1,952 @@
+# EPICS interface developed by Jakub
+# Bsui code adopted from BMM/Bruce Ravel and modified by Ruipeng Li
+# 2025-08-19: Modified by Siyu Wu
+
+import asyncio
+import pandas as pd
+import time
+import json
+from pathlib import Path
+from datetime import datetime
+
+class LinkamThermal(Device):
+    """
+    Device interface and experiment orchestration for the Linkam thermal stage.
+    Supports step programming, temperature/rate control, async experiment runs,
+    and automated data archiving.
+    """
+
+    # Set-and-read signals
+    cmd = Cpt(EpicsSignal, "STARTHEAT")
+    temperature_setpoint = Cpt(EpicsSignal, "SETPOINT:SET")
+    temperature_rate_setpoint = Cpt(EpicsSignal, "RAMPRATE:SET")
+
+    # Read-Only signals
+    status_power = Cpt(EpicsSignalRO, "STARTHEAT")
+    status_code = Cpt(EpicsSignalRO, "STATUS")
+    # status_code = Cpt(EpicsSignal, 'STATUS')
+    # done = Cpt(AtSetpoint, parent_attr = 'status_code')
+    temperature_current = Cpt(EpicsSignalRO, "TEMP")
+    temperature_rate_current = Cpt(EpicsSignalRO, "RAMPRATE")
+    power = Cpt(EpicsSignalRO, "POWER")
+
+    # Not commonly used signals
+    init = Cpt(EpicsSignal, "INIT")
+    model_array = Cpt(EpicsSignal, "MODEL")
+    serial_array = Cpt(EpicsSignal, "SERIAL")
+    stage_model_array = Cpt(EpicsSignal, "STAGE:MODEL")
+    stage_serial_array = Cpt(EpicsSignal, "STAGE:SERIAL")
+    firm_ver = Cpt(EpicsSignal, "FIRM:VER")
+    hard_ver = Cpt(EpicsSignal, "HARD:VER")
+    ctrllr_err = Cpt(EpicsSignal, "CTRLLR:ERR")
+    config = Cpt(EpicsSignal, "CONFIG")
+    stage_config = Cpt(EpicsSignal, "STAGE:CONFIG")
+    disable = Cpt(EpicsSignal, "DISABLE")
+    dsc = Cpt(EpicsSignal, "DSC")
+    # RR_set = Cpt(EpicsSignal, 'RAMPRATE:SET')
+    # RR = Cpt(EpicsSignal, 'RAMPRATE')
+    ramptime = Cpt(EpicsSignal, "RAMPTIME")
+    # startheat = Cpt(EpicsSignal, 'STARTHEAT')
+    holdtime_set = Cpt(EpicsSignal, "HOLDTIME:SET")
+    holdtime = Cpt(EpicsSignal, "HOLDTIME")
+    lnp_speed = Cpt(EpicsSignal, "LNP_SPEED")
+    lnp_mode_set = Cpt(EpicsSignal, "LNP_MODE:SET")
+    lnp_speed_set = Cpt(EpicsSignal, "LNP_SPEED:SET")
+
+    # Stage origin position logging functions
+    # Add by Siyu Wu 2025-08-19
+
+    # Default step columns and PVs for thermal mode
+    step_columns = ['stepNo', 'temperature', 'rate', 'wait_time']
+    pv_list = [
+        'XF:11BM-ES:{LINKAM}:TEMP',
+        'XF:11BM-ES:{LINKAM}:RAMPRATE',
+        'XF:11BM-ES:{LINKAM}:SETPOINT',
+        'XF:11BM-ES:{LINKAM}:STATUS',
+        'XF:11BM-ES:{LINKAM}:POWER'
+    ]
+
+    def __init__(self, prefix, name=None, step_columns=None, pv_list=None, **kwargs):
+        """
+        Initialize LinkamThermal device, step configuration, and position logging.
+        """
+        super().__init__(prefix, name=name, **kwargs)
+        self.folder = '/nsls2/data3/cms/shared/config/bluesky/profile_collection/startup/cfg/'
+        self.config_file = Path(self.folder + 'linkam_stage_pos.cfg')
+        self.csv_path = Path(self.folder + f'{name}_step.csv')
+        self.step_columns = step_columns or self.step_columns
+        self.pv_list = pv_list or self.pv_list
+        self.step_config = pd.DataFrame(columns=self.step_columns)
+        self._sync()
+        self.positions = self._load_config()
+        self.loadOrigin()
+
+    def _sync(self):
+        """
+        Sync current motor positions to internal state.
+        """
+        self.xo = smx.position
+        self.yo = smy.position
+
+    def _save_config(self):
+        """Save current positions to JSON config file."""
+        with open(self.config_file, 'w') as f:
+            json.dump(self.positions, f, indent=2)
+
+    def _load_config(self):
+        """Load positions from JSON config file."""
+        if self.config_file.exists():
+            with open(self.config_file, 'r') as f:
+                return json.load(f)
+        return {}
+
+    def setOrigin(self):
+        """Save current origin position (xo, yo) with timestamp to config file."""
+        if self.config_file.exists():
+            with open(self.config_file, 'r') as f:
+                self.positions = json.load(f)
+        else:
+            self.positions = {}
+
+        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        entry = {'xo': self.xo, 'yo': self.yo, 'timestamp': timestamp}
+        self.positions.setdefault(self.name, []).append(entry)
+        self._save_config()
+        print(f"Saved current position for '{self.name}' at {timestamp}.")
+
+    def loadOrigin(self):
+        """Load the last saved origin position (xo, yo) from the config file."""
+        if self.config_file.exists():
+            with open(self.config_file, 'r') as f:
+                self.positions = json.load(f)
+            entries = self.positions.get(self.name)
+            if entries:
+                latest = entries[-1]
+                self.xo = latest['xo']
+                self.yo = latest['yo']
+                print(f"Loaded last position for '{self.name}' from {latest.get('timestamp', 'unknown')}")
+            else:
+                print(f"No saved position found for '{self.name}'.")
+        else:
+            print(f"No config file found for '{self.name}'.")
+
+    def on(self):
+        """Turn the stage heater on."""
+        while self.cmd.get() != 1:
+            time.sleep(0.2)
+            self.cmd.put(1)
+        return self.cmd.get()
+
+    def _on(self):
+        """
+        Internal method to turn the stage on.
+        """
+        yield from bps.mv(self.cmd, 1)
+
+    def off(self):
+        """Turn the stage heater off."""
+        while self.cmd.get() != 0:
+            time.sleep(0.2)
+            self.cmd.put(0)
+        return self.cmd.get()
+
+    def _off(self):
+        """
+        Internal method to turn the stage off.
+        """
+        yield from bps.mv(self.cmd, 0)
+
+    def setTemperature(self, temperature):
+        """
+        Sets the temperature setpoint for the stage.
+        """
+        while self.temperature_setpoint.get() != temperature:
+            time.sleep(0.2)
+            self.temperature_setpoint.put(temperature)
+        return self.temperature_setpoint.get()
+
+    def setTemperatureRate(self, temperature_rate: float) -> float:
+        """Set the temperature ramp rate for the stage."""
+        while self.temperature_rate_setpoint.get() != temperature_rate:
+            time.sleep(0.2)
+            self.temperature_rate_setpoint.put(temperature_rate)
+        return self.temperature_rate_setpoint.get()
+
+    def temperature(self) -> float:
+        """Get the current temperature of the stage."""
+        return self.temperature_current.get()
+
+    def temperatureRate(self) -> float:
+        """Get the current temperature ramp rate of the stage."""
+        return self.temperature_rate_current.get()
+
+    @property
+    def serial(self):
+        return self.arr2word(self.serial_array.get())
+
+    @property
+    def model(self):
+        return self.arr2word(self.model_array.get())
+
+    @property
+    def stage_model(self):
+        return self.arr2word(self.stage_model_array.get())
+
+    @property
+    def stage_serial(self):
+        return self.arr2word(self.stage_serial_array.get())
+
+    @property
+    def firmware_version(self):
+        return self.arr2word(self.firm_ver.get())
+
+    @property
+    def hardware_version(self):
+        return self.arr2word(self.hard_ver.get())
+
+    def status(self):
+        """
+        Print a summary of the current stage status.
+        Shows temperature, setpoint, heater, pump, and error states.
+        """
+        text = f"\nCurrent temperature = {self.temperature():.1f}, setpoint = {self.temperature_setpoint.get():.1f}\n\n"
+        code = int(self.status_code.get())
+        text += f"Error        : {'yes' if code & 1 else 'no'}\n"
+        text += f"At setpoint  : {'yes' if code & 2 else 'no'}\n"
+        text += f"Heater       : {'on' if code & 4 else 'off'}\n"
+        text += f"Pump         : {'on' if code & 8 else 'off'}\n"
+        text += f"Pump Auto    : {'yes' if code & 16 else 'no'}\n"
+        print(text)
+
+    # Linkam Stage Step Configuration Read/Load functions
+    # Added by Siyu Wu 2025-08-19
+
+    def load_step_config(self) -> pd.DataFrame:
+        """
+        Load step configuration from CSV.
+        Uses self.step_columns for required columns.
+        Returns: pandas DataFrame
+        """
+        df = pd.read_csv(self.csv_path)
+        required_cols = set(self.step_columns)
+        if not required_cols.issubset(df.columns):
+            raise ValueError(f"CSV must contain columns: {required_cols}")
+        self.step_config = df
+        return df
+
+    def save_step_config(self) -> None:
+        """Save step configuration DataFrame to CSV."""
+        self.step_config.to_csv(self.csv_path, index=False)
+
+    def show_step_config(self) -> None:
+        """Display the current step configuration."""
+        if hasattr(self, 'step_config'):
+            print(self.step_config)
+        else:
+            print("No step configuration loaded.")
+    def add_step(self, *args, **kwargs) -> None:
+        """
+        Add a new step to the step configuration.
+        You can use positional arguments (in order of self.step_columns, skipping 'stepNo')
+        or keyword arguments (column=value).
+        Example:
+            add_step(25, 10, 15)  # temperature, rate, wait_time
+            add_step(25, 10, 15, -1000, 100)  # for tensile: temperature, rate, wait_time, position, velocity
+            add_step(temperature=25, rate=10, wait_time=15)
+        """
+        if not hasattr(self, 'step_config'):
+            self.step_config = pd.DataFrame(columns=self.step_columns)
+        stepNo = len(self.step_config)
+        new_step = {'stepNo': stepNo}
+        # Fill from positional args
+        cols = [col for col in self.step_columns if col != 'stepNo']
+        for i, col in enumerate(cols):
+            if i < len(args):
+                new_step[col] = args[i]
+            else:
+                new_step[col] = kwargs.get(col, None)
+        self.step_config = pd.concat([self.step_config, pd.DataFrame([new_step])], ignore_index=True)
+        self.save_step_config()
+        print(f"Added step {stepNo}: " + ", ".join(f"{k}={v}" for k, v in new_step.items() if k != 'stepNo'))
+
+    def set_step(self, stepNo: int, *args, **kwargs) -> None:
+        """
+        Update a specific step in the step configuration.
+        You can use positional arguments (in order of self.step_columns, skipping 'stepNo')
+        or keyword arguments (column=value).
+        """
+        if not hasattr(self, 'step_config'):
+            raise ValueError("No step configuration loaded. Use load_step_config first.")
+        if stepNo < 0 or stepNo >= len(self.step_config):
+            raise IndexError("Step number out of range.")
+        current_data = {'stepNo': stepNo}
+        cols = [col for col in self.step_columns if col != 'stepNo']
+        for i, col in enumerate(cols):
+            if i < len(args):
+                current_data[col] = args[i]
+            else:
+                current_data[col] = kwargs.get(col, self.step_config.loc[stepNo, col])
+        self.step_config.loc[stepNo] = current_data
+        self.save_step_config()
+        print(f"Updated step {stepNo}: " + ", ".join(f"{k}={v}" for k, v in current_data.items() if k != 'stepNo'))
+
+    def delete_step(self, stepNo: int) -> None:
+        """
+        Delete a specific step from the step configuration.
+        """
+        if not hasattr(self, 'step_config'):
+            raise ValueError("No step configuration loaded. Use load_step_config first.")
+        if stepNo < 0 or stepNo >= len(self.step_config):
+            raise IndexError("Step number out of range.")
+        self.step_config = self.step_config[self.step_config['stepNo'] != stepNo]
+        self.step_config.reset_index(drop=True, inplace=True)
+        self.step_config['stepNo'] = range(len(self.step_config))
+        self.save_step_config()
+        print(f"Deleted step {stepNo}.")
+
+    def insert_step(self, stepNo: int, *args, **kwargs) -> None:
+        """
+        Insert a new step at a specific position in the step configuration.
+        You can use positional arguments (in order of self.step_columns, skipping 'stepNo')
+        or keyword arguments (column=value).
+        """
+        if not hasattr(self, 'step_config'):
+            raise ValueError("No step configuration loaded. Use load_step_config first.")
+        if stepNo < 0 or stepNo > len(self.step_config):
+            raise IndexError("Step number out of range.")
+        new_step = {'stepNo': stepNo}
+        cols = [col for col in self.step_columns if col != 'stepNo']
+        for i, col in enumerate(cols):
+            if i < len(args):
+                new_step[col] = args[i]
+            else:
+                new_step[col] = kwargs.get(col, None)
+        upper_half = self.step_config[self.step_config['stepNo'] >= stepNo].copy()
+        upper_half['stepNo'] += 1
+        self.step_config = pd.concat([
+            self.step_config[self.step_config['stepNo'] < stepNo],
+            pd.DataFrame([new_step]),
+            upper_half
+        ], ignore_index=True)
+        self.save_step_config()
+        print(f"Inserted step at position {stepNo}: " + ", ".join(f"{k}={v}" for k, v in new_step.items() if k != 'stepNo'))
+    
+    # --- Step Execution ---
+
+    def run_step(self, stepNo: int = 0) -> None:
+        """
+        Run the thermal stage from a specific step (blocking).
+        """
+        if not hasattr(self, 'step_config'):
+            raise ValueError("No step configuration loaded. Use load_step_config first.")
+        if stepNo < 0 or stepNo >= len(self.step_config):
+            raise IndexError("Step number out of range.")
+        for i in range(stepNo, len(self.step_config)):
+            self.run_single_step(i)
+        self.off()
+
+    def run_single_step(self, stepNo: int, stop_evt: threading.Event = None) -> None:
+        """
+        Run a single step (blocking), responsive to stop_evt.
+        Prints step info before running.
+        """
+        if not hasattr(self, 'step_config'):
+            raise ValueError("No step configuration loaded. Use load_step_config first.")
+        if stepNo < 0 or stepNo >= len(self.step_config):
+            raise IndexError("Step number out of range.")
+        if stop_evt and stop_evt.is_set():
+            return
+        step = self.step_config.iloc[stepNo]
+        print(f"[LINKAM] Running step {stepNo}: Temperature={step['temperature']}, Rate={step['rate']}, Wait={step['wait_time']}s")
+        self.on()
+        self.setTemperature(step['temperature'])
+        self.setTemperatureRate(step['rate'])
+        wait_s = float(step.get('wait_time', 0))
+        end = time.monotonic() + wait_s
+        while time.monotonic() < end:
+            if stop_evt and stop_evt.is_set():
+                break
+            time.sleep(min(0.1, end - time.monotonic()))
+
+    async def run_single_step_async(self, stepNo: int, stop_event: asyncio.Event = None) -> None:
+        """
+        Async wrapper for run_single_step that bridges to a threading.Event.
+        """
+        thread_stop = threading.Event()
+        async def _bridge():
+            if stop_event is None:
+                return
+            await stop_event.wait()
+            thread_stop.set()
+        bridge_task = asyncio.create_task(_bridge())
+        try:
+            await asyncio.to_thread(self.run_single_step, stepNo, thread_stop)
+        finally:
+            if not bridge_task.done():
+                bridge_task.cancel()
+                with contextlib.suppress(asyncio.CancelledError):
+                    await bridge_task
+
+    async def run_step_async(self, stepNo: int = 0, stop_event: asyncio.Event = None) -> None:
+        """
+        Run the thermal stage from a specific step asynchronously.
+        """
+        if stop_event is None:
+            stop_event = asyncio.Event()
+        try:
+            if not hasattr(self, 'step_config'):
+                raise ValueError("No step configuration loaded. Use load_step_config first.")
+            if stepNo < 0 or stepNo >= len(self.step_config):
+                raise IndexError("Step number out of range.")
+            for i in range(stepNo, len(self.step_config)):
+                if stop_event.is_set():
+                    print("[LINKAM] Stop event detected, aborting step run.")
+                    break
+                await self.run_single_step_async(i, stop_event=stop_event)
+        finally:
+            self.off()
+
+    async def run_and_archive(self, output_file=None, stepNo=0, verbose=True, stop_event=None):
+        """
+        Run Linkam steps and archive PVs asynchronously.
+        Responds to external asyncio.Event stop signal.
+
+        Parameters:
+            output_file (str, optional): Path to save archived data. If None, uses timestamped default.
+            stepNo (int, optional): Step number to start from. Defaults to 0.
+            verbose (bool, optional): If True, prints progress information.
+            stop_event (asyncio.Event, optional): External stop signal. If set, aborts run.
+
+        This method wraps the Linkam step runner in an archiver context, recording all PVs in pv_list
+        to output_file while running the steps. If interrupted, turns off the heater and exits cleanly.
+        """
+        if output_file is None:
+            now = datetime.now().strftime("%Y%m%d-%H-%M-%S")
+            output_file = self.folder + f'linkam_archiver_record_{now}.csv'
+        pv_list = self.pv_list
+        if stop_event is None:
+            stop_event = asyncio.Event()
+        @archived(output_file, pv_list, verbose=verbose)
+        async def run_steps_async():
+            await self.run_step_async(stepNo, stop_event=stop_event)
+        try:
+            await run_steps_async()
+        except KeyboardInterrupt:
+            print("[LINKAM] Interrupted! Turning off heater.")
+            stop_event.set()
+            self.off()
+
+##################################################################################
+
+
+    # def set(self, value):
+    #     if value == 'Open':
+    #         return self.full.set('Open') #& self.soft.set('Open')
+    #     elif value == 'Soft':
+    #         return self.soft.set('Open') & self.full.set('Close')
+    #     elif value == 'Close':
+    #         return self.full.set('Close') & self.soft.set('Close')
+    #     else:
+    #         raise ValueError("value must be in {'Open', 'Close', 'Soft'}")
+
+
+##################################################################################
+
+# Legacy Fuctions (Not Used)
+
+# def setLinkamOn(self):
+#     caput('XF:11BM-ES:{LINKAM}:STARTHEAT', 1)
+#     return 1
+
+# def setLinkamOff(self):
+#     caput('XF:11BM-ES:{LINKAM}:STARTHEAT', 0)
+#     return 0
+
+# def linkamTemperature(self):
+#     return caget('XF:11BM-ES:{LINKAM}:TEMP')
+# def setLinkamTemperature(self,temperature ):
+#     caput('XF:11BM-ES:{LINKAM}:SETPOINT:SET', temperature)
+#     return temperature
+
+
+# def setLinkamRate(self, rate):
+#     caput('XF:11BM-ES:{LINKAM}:RAMPRATE:SET', rate)
+#     return rate
+
+# def linkamStatus(self):
+#     return caget('XF:11BM-ES:{LINKAM}:STATUS')
+
+
+# def linkamTensilePos(self):
+#     return caget('XF:11BM-ES:{LINKAM}:TST_MOTOR_POS')
+
+
+class LinkamTensile(LinkamThermal):
+    """
+    Device interface and experiment orchestration for the Linkam tensile stage.
+
+    Supports step programming with temperature, ramp rate, wait time, position, velocity,
+    and automated data archiving of all relevant PVs (temperature, force, position, velocity, etc).
+    """
+
+    # cmd = Cpt(EpicsSignal, 'STARTHEAT')
+    # temperature_setpoint = Cpt(EpicsSignal, 'SETPOINT:SET')
+    # temperature_rate_setpoint = Cpt(EpicsSignal, 'RAMPRATE:SET')
+
+    # status = Cpt(EpicsSignalRO, 'STATUS')
+    # temperature = Cpt(EpicsSignalRO, 'TEMP')
+    # rampRate = Cpt(EpicsSignalRO, 'RAMPRATE')
+
+    # Read-Only signals for the states of the stage
+    status_code_Tensile = Cpt(EpicsSignalRO, "TST_STATUS")
+    POS = Cpt(EpicsSignalRO, "TST_MOTOR_POS")
+    POS_RAW = Cpt(EpicsSignalRO, "TST_RAW_MOTOR_POS")
+
+    FORCE = Cpt(EpicsSignalRO, "TST_FORCE")
+    STRAIN = Cpt(EpicsSignalRO, "TST_STRAIN")
+    STRESS = Cpt(EpicsSignalRO, "TST_STRESS")
+
+    tensile_maxs_force = Cpt(EpicsSignalRO, "TST_MAX_FORCE")
+    tensile_remain_cycles = Cpt(EpicsSignalRO, "TST_CYCLES_REMAINING")
+
+    # Read-Only signals of the set points
+    direction = Cpt(EpicsSignalRO, "TST_TABLE_DIR")
+    force = Cpt(EpicsSignal, "TST_FORCE_SETPOINT")
+    distance = Cpt(EpicsSignal, "TST_MTR_DIST_SP")  # relative distance
+    mode = Cpt(EpicsSignalRO, "TST_TABLE_MODE")
+    velocity = Cpt(EpicsSignal, "TST_MTR_VEL")
+
+    # Set-and-read signals
+    run_cmd = Cpt(EpicsSignal, "TST_START_MOTOR")  # start/stop the motor
+
+    direction_setpoint = Cpt(EpicsSignal, "TST_TABLE_DIR:SET")
+    force_setpoint = Cpt(EpicsSignal, "TST_FORCE_SETPOINT:SET")
+    distance_setpoint = Cpt(EpicsSignal, "TST_MTR_DIST_SP:SET")  # relative distance
+    mode_setpoint = Cpt(EpicsSignal, "TST_TABLE_MODE:SET")
+    velocity_setpoint = Cpt(EpicsSignal, "TST_MTR_VEL:SET")
+
+    # not commonly used ones
+    J2J_distance = Cpt(EpicsSignal, "TST_JAW_TO_JAW_SIZE")
+    J2J_distance_setpoint = Cpt(EpicsSignal, "TST_JAW_TO_JAW_SIZE:SET")
+
+    # PVs to archive for tensile experiments
+    step_columns = ['stepNo', 'temperature', 'rate', 'wait_time', 'position', 'velocity']
+    pv_list = [
+        'XF:11BM-ES:{LINKAM}:TEMP',          # Temperature
+        'XF:11BM-ES:{LINKAM}:RAMPRATE',      # Ramp rate
+        'XF:11BM-ES:{LINKAM}:TST_FORCE',     # Force
+        'XF:11BM-ES:{LINKAM}:TST_RAW_MOTOR_POS', # Position
+        # 'XF:11BM-ES:{LINKAM}:TST_MTR_VEL',   # Velocity
+        # 'XF:11BM-ES:{LINKAM}:SETPOINT',      # Setpoint
+        # 'XF:11BM-ES:{LINKAM}:TST_STATUS',        # Status
+        'XF:11BM-ES:{LINKAM}:POWER'          # Power
+    ]
+
+    def __init__(self, prefix, name=None, **kwargs):
+        super().__init__(prefix, name=name, **kwargs)
+        self.step_setters = {
+            'temperature': self.setTemperature,
+            'rate': self.setTemperatureRate,
+            'position': self.setPosition,
+            'velocity': self.setVelocity,
+        }
+
+    def statusTensile(self, verbosity=3):
+        text = f"\nCurrent temperature = {self.temperature():.1f}, setpoint = {self.temperature_setpoint.get():.1f}\n\n"
+
+        # mode_value = self.
+        text += f"\nCurrent mode = {self.getMode(verbosity=5):}\n\n"
+        code = int(self.status_code_Tensile.get())
+
+        if code & 1:  # Zero Limit
+            text += "Zero Limit        : yes" + "\n"
+        else:
+            text += "Zero Limit        : no\n"
+        if code & 2:  # ref Limit
+            text += "ref Limit         : yes" + "\n"
+        else:
+            text += "ref Limit         : no\n"
+        if code & 4:  # Move Done
+            text += "Move Done         : on" + "\n"
+        else:
+            text += "Move Done         : off\n"
+        if code & 8:  # Direction
+            text += "Direction         : on" + "\n"
+        else:
+            text += "Direction         : off\n"
+        if code & 16:  # Force
+            text += "Force             : yes" + "\n"
+        else:
+            text += "Force             : no\n"
+        if code & 32:  # Cycle mode
+            text += "Cycle mode        : yes" + "\n"
+        else:
+            text += "Cycle mode        : no\n"
+        if code & 64:  # Cycle dir open
+            text += "Cycle dir open    : yes" + "\n"
+        else:
+            text += "Cycle dir open    : no\n"
+
+        if verbosity >= 3:
+            print(text)
+        return code
+
+    def start(self):
+        return self.run_cmd.put(1)
+
+    def _start(self):
+        yield from bps.mv(self.run_cmd, 1)
+
+    def stop(self):
+        return self.run_cmd.put(0)
+
+    def _stop(self):
+        yield from bps.mv(self.run_cmd, 0)
+
+    def setMode(self, mode):
+        """
+        mode = 0 : 'velocity'
+        mode = 1 : 'step'
+        mode = 2 : 'cycle'
+        mode = 3 : 'force'
+        mode = 4 : 'relax'
+        mode = 5 : 'stop'
+        """
+
+        if type(mode) == str:
+            if mode == "velocity":
+                mode = 0
+            elif mode == "step":
+                mode = 1
+            elif mode == "cycle":
+                mode = 2
+            elif mode == "force":
+                mode = 3
+            elif mode == "relax":
+                mode = 4
+            elif mode == "stop":
+                mode = 5
+            else:
+                return print("Wrong mode.")
+
+        if mode == 0:
+            print("Mode:      velocity.")
+            print("Constant velocity is expected.")
+            print("Inputs are limited to velocity and distance.")
+
+        elif mode == 1:
+            print("Mode:      step.")
+            print("Distance is expected.")
+            print("Inputs are limited to velocity and distance.")
+
+        elif mode == 2:
+            print("Mode:      cycle.")
+            print("SWITCH TO setp MODE!")
+            # print('Inputs are limited to velocity and distance.')
+
+        elif mode == 3:
+            print("Mode:      force.")
+            print("Constant force is expected.")
+            print("Inputs are limited to force and distance.")
+
+        elif mode == 4:
+            print("Mode:      relax.")
+            print("Nothing is expected except time.")
+
+        elif mode == 5:
+            print("Mode:      stop.")
+
+        else:
+            return print("[LINKAM-TENSILE] Wrong mode. Please choose from 0-velocity, 1-step, 3-force, 4-relax and 5-stop")
+
+        return self.mode_setpoint.put(mode)
+
+    def getMode(self, verbosity=0):
+        value = self.mode_setpoint.get()
+        if value == 0:
+            mode_value = "velocity"
+        elif value == 1:
+            mode_value = "step"
+        elif value == 2:
+            mode_value = "cycle"
+        elif value == 3:
+            mode_value = "force"
+        elif value == 4:
+            mode_value = "relax"
+        elif value == 5:
+            mode_value = "stop"
+
+        if verbosity >= 3:
+            return mode_value
+
+        return value
+
+    def mov(self, position, velocity=None, verbosity=3):
+        # move to the absolute position
+
+        if position < 0:
+            return "[LINKAM-TENSILE] Error: position < 0. "
+
+        # set distance
+        relative_pos = position - self.POS.get()
+        if verbosity >= 3:
+            print("[LINKAM-TENSILE] The motor will move {:1f} mm.".format(relative_pos))
+
+        if relative_pos > 0:
+            self.setDirection(0)
+        elif relative_pos < 0:
+            self.setDirection(1)
+        else:
+            return self.POS.get()
+
+        self.distance_setpoint.put(abs(relative_pos))
+
+        # set velocity
+        if velocity == None and self.velocity.get() == 0:
+            return print("[LINKAM-TENSILE] The velocity is 0. No movement.")
+            # self.velocity_setpoint.put(self.velocity.get())
+        elif velocity == None and self.velocity.get() != 0:
+            pass
+        else:
+            self.velocity_setpoint.put(velocity)
+
+        self.run_cmd.put(1)
+        if verbosity >= 1:
+            while int(LTensile.status_code_Tensile.get()) & 4:
+                return self.POS.get()
+
+        if verbosity >= 3:
+            print(self.POS.get())
+        return self.POS.get()
+
+    def movr(self, distance, velocity=None, verbosity=3):
+        # move to the relative position
+        relative_pos = distance
+        if relative_pos > 0:  # open
+            self.setDirection(0)
+        elif relative_pos < 0:  # close
+            self.setDirection(1)
+        else:
+            return self.POS.get()
+        self.distance_setpoint.put(abs(relative_pos))
+
+        if velocity == None and self.velocity.get() == 0:
+            return print("[LINKAM-TENSILE] The velocity is 0. No movement.")
+            # self.velocity_setpoint.put(self.velocity.get())
+        elif velocity == None and self.velocity.get() != 0:
+            pass
+        else:
+            self.velocity_setpoint.put(velocity)
+
+        self.run_cmd.put(1)
+        if verbosity >= 1:
+            while int(LTensile.status_code_Tensile.get()) & 4:
+                return self.POS.get()
+
+        if verbosity >= 3:
+            print(self.POS.get())
+        return self.POS.get()
+
+    def _mov(self, position, velocity=None, verbosity=3):
+        # move to the absolute position
+        # YF version
+
+        if position < 0:
+            return "Error: position < 0. "
+
+        # set distance
+        relative_pos = position - self.POS.get()
+        if verbosity >= 3:
+            print("[LINKAM-TENSILE] The motor will move {:1f} mm.".format(relative_pos))
+
+        if relative_pos > 0:
+            yield from bps.mv(self.direction_setpoint, 0)
+            # self.setDirection(0)
+        elif relative_pos < 0:
+            yield from bps.mv(self.direction_setpoint, 1)
+        else:
+            return self.POS.get()
+
+        yield from bps.mv(self.distance_setpoint, abs(relative_pos))
+
+        # set velocity
+        if velocity == None and self.velocity.get() == 0:
+            return print("[LINKAM-TENSILE] The velocity is 0. No movement.")
+            # self.velocity_setpoint.put(self.velocity.get())
+        elif velocity == None and self.velocity.get() != 0:
+            pass
+        else:
+            yield from bps.mv(self.velocity_setpoint, velocity)
+            # self.velocity_setpoint.put(velocity)
+
+        yield from bps.mv(self.run_cmd, 1)
+        # self.run_cmd.put(1)
+        if verbosity >= 1:
+            while int(LTensile.status_code_Tensile.get()) & 4:
+                return self.POS.get()
+
+        if verbosity >= 3:
+            print(self.POS.get())
+        return self.POS.get()
+
+    def setDirection(self, direction, wait_time=0.1, verbosity=3):
+        # 0 = Open, 1 = close
+        if direction == 0 or direction == "open":
+            self.direction_setpoint.put(0)
+            # print("test0")
+
+        elif direction == 1 or direction == "close":
+            # print("test1")
+            self.direction_setpoint.put(1)
+        else:
+            print("[LINKAM-TENSILE] Wrong input.")
+
+        time.sleep(wait_time)
+        if verbosity >= 3:
+            if self.direction.get() == 0:
+                text_direction = "open"
+            else:
+                text_direction = "close"
+            print("[LINKAM-TENSILE] Current direction : {}".format(text_direction))
+
+        return self.direction.get()
+
+    def _setDirection(self, direction, verbosity=3):
+        # 0 = Open, 1 = close
+        if direction == 0 or direction == "open":
+            yield from bps.mv(self.direction_setpoint, 0)
+        elif direction == 1 or direction == "close":
+            yield from bps.mv(self.direction_setpoint, 1)
+        else:
+            print("[LINKAM-TENSILE] Wrong input.")
+
+        if verbosity >= 3:
+            if self.direction.get() == 0:
+                text_direction = "open"
+            else:
+                text_direction = "close"
+            print("[LINKAM-TENSILE] Current direction : {}".format(text_direction))
+
+        return self.direction.get()
+
+    def states(self):
+        # show the current states of the tensile stage, including
+        # T, motor position and direction, force, velocity and mode
+
+        # from Temperature sensor, independent from the tensile
+        text = f"\nCurrent temperature = {self.temperature():.1f}, setpoint = {self.temperature_setpoint.get():.1f}\n\n"
+
+        # stage states, RO
+        text += f"\nSTAGE POSITION = {self.POS.get():1f}\n\n"
+        text += f"\nSTAGE FORCE  = {self.FORCE.get():1f}\n\n"
+        text += f"\nSTAGE STRAIN = {self.STRAIN.get():1f}\n\n"
+        text += f"\nSTAGE STRESS = {self.STRESS.get():1f}\n\n"
+
+        # setting for the tensile part
+        text += f"\nCurrent mode = {self.getMode(verbosity=5)}\n\n"
+        text += f"\nCurrent distance = {self.distance.get():1f}, setpoint={self.distance_setposition.get():1f}\n\n"
+        text += f"\nCurrent velocity = {self.velocity.get():1f}, setpoint={self.velocity_setposition.get():1f}\n\n"
+        text += f"\nCurrent force = {self.force.get():1f}, setpoint={self.force_setposition.get():1f}\n\n"
+
+    # force = Cpt(EpicsSignal, 'TST_FORCE_SETPOINT')
+    # distance = Cpt(EpicsSignal, 'TST_MTR_DIST_SP') #relative distance
+    # mode = Cpt(EpicsSignalRO, 'TST_TABLE_MODE')
+    # velocity = Cpt(EpicsSignal, 'TST_MTR_VEL')
+
+    # Linkam Stage Tensile Step Configuration Read/Load functions
+    # Added by Siyu Wu 2025-09-01
+
+    def setPosition(self, position: float) -> float:
+        """Set the tensile stage position."""
+        while self.POS.get() != position:
+            time.sleep(0.2)
+            self.distance_setpoint.put(position)
+        return self.POS.get()
+
+    def setVelocity(self, velocity: float) -> float:
+        """Set the tensile stage velocity."""
+        while self.velocity_current.get() != velocity:
+            time.sleep(0.2)
+            self.velocity_setpoint.put(velocity)
+        return self.velocity_current.get()
+
+    def force(self) -> float:
+        """Get the current tensile stage force."""
+        return self.FORCE.get()
+
+    def run_single_step(self, stepNo: int, stop_evt: threading.Event = None) -> None:
+        """
+        Run a single tensile step (blocking), responsive to stop_evt.
+        Sets all step PVs, triggers motor start, waits, and stops motor if interrupted.
+        """
+        if not hasattr(self, 'step_config'):
+            raise ValueError("No step configuration loaded. Use load_step_config first.")
+        if stepNo < 0 or stepNo >= len(self.step_config):
+            raise IndexError("Step number out of range.")
+        step = self.step_config.iloc[stepNo]
+        print(f"[LINKAM-TENSILE] Running step {stepNo}: " +
+            ", ".join(f"{col}={step[col]}" for col in self.step_columns if col != 'stepNo'))
+
+        # Set all relevant PVs
+        self.setTemperature(step['temperature'])
+        self.setTemperatureRate(step['rate'])
+
+        self.on()
+
+        # Use movr to trigger tensile movement
+        self.movr(step['position'], step['velocity'])
+
+        try:
+            wait_s = float(step.get('wait_time', 0))
+            end = time.monotonic() + wait_s
+            while time.monotonic() < end:
+                if stop_evt and stop_evt.is_set():
+                    print("[LINKAM-TENSILE] Stop event detected, stopping motor.")
+                    break
+                time.sleep(min(0.1, end - time.monotonic()))
+        finally:
+            self.stop()
+
+    async def run_single_step_async(self, stepNo: int, stop_event: asyncio.Event = None) -> None:
+        """
+        Async wrapper for run_single_step that bridges to a threading.Event.
+        """
+        thread_stop = threading.Event()
+        async def _bridge():
+            if stop_event is None:
+                return
+            await stop_event.wait()
+            thread_stop.set()
+        bridge_task = asyncio.create_task(_bridge())
+        try:
+            await asyncio.to_thread(self.run_single_step, stepNo, thread_stop)
+        finally:
+            if not bridge_task.done():
+                bridge_task.cancel()
+                with contextlib.suppress(asyncio.CancelledError):
+                    await bridge_task
+
+    async def run_step_async(self, stepNo: int = 0, stop_event: asyncio.Event = None) -> None:
+        """
+        Run the tensile stage from a specific step asynchronously.
+        """
+        if stop_event is None:
+            stop_event = asyncio.Event()
+        try:
+            if not hasattr(self, 'step_config'):
+                raise ValueError("No step configuration loaded. Use load_step_config first.")
+            if stepNo < 0 or stepNo >= len(self.step_config):
+                raise IndexError("Step number out of range.")
+            for i in range(stepNo, len(self.step_config)):
+                if stop_event.is_set():
+                    print("[LINKAM-TENSILE] Stop event detected, aborting step run.")
+                    break
+                await self.run_single_step_async(i, stop_event=stop_event)
+        finally:
+            self.off()
+            self.stop()
+
+
+LThermal = LinkamThermal("XF:11BM-ES:{LINKAM}:", name="LinkamTrans")
+# LThermal = LinkamThermal("XF:11BM-ES:{LINKAM}:", name="LinkamGI")
+LTensile = LinkamTensile("XF:11BM-ES:{LINKAM}:", name="LinkamTensile")
