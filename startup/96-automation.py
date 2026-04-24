@@ -35,7 +35,7 @@ class SampleExchangeRobot(Stage):
         # self.yabs(-82.0) # Good height for 'slotted approach'
         # self.yabs(-77.0) # Good height for 'grip' (grip-screws sitting at bottom of wells)
         # self.yabs(-67.0) # Good height for 'hover' (sample held above stage)
-        self._delta_y_hover = 5.0
+        self._delta_y_hover = 7.0
         self._delta_y_slot = 4.0
 
         #'SAFE' position of gripper
@@ -756,6 +756,8 @@ class SampleExchangeRobot(Stage):
         if not success:
             return
         x = self.xpos(verbosity=0)
+        while armx.moving==True:
+            time.sleep(.5)
         y = self.ypos(verbosity=0)
 
         # Lower so that the slot is aligned
@@ -764,7 +766,8 @@ class SampleExchangeRobot(Stage):
         # Move towards parking lot
         self._region = "parking"
         self.zabs(z, verbosity=verbosity)
-
+        while armz.moving==True:
+            time.sleep(.5)
         # Grip sample
         self.yr(+self._delta_y_slot, verbosity=verbosity)
 
@@ -776,7 +779,11 @@ class SampleExchangeRobot(Stage):
 
         # Move away from parking
         self.zabs(0, verbosity=verbosity)
+        while armz.moving==True:
+            time.sleep(.5)
         self.xabs(0, verbosity=verbosity)
+        while armx.moving==True:
+            time.sleep(.5)
         self.yabs(self._position_safe[1], verbosity=verbosity)
         if gotoSafe == True:
             self.sequenceGotoSafe(verbosity=verbosity)
@@ -855,6 +862,8 @@ class SampleExchangeRobot(Stage):
         if not success:
             return
         x = self.xpos(verbosity=0)
+        while armx.moving==True:
+            time.sleep(.5)
         y = self.ypos(verbosity=0)
 
         # Hover
@@ -863,7 +872,8 @@ class SampleExchangeRobot(Stage):
         # Move towards parking lot
         self._region = "parking"
         self.zabs(z, verbosity=verbosity)
-
+        while armz.moving==True:
+            time.sleep(.5)
         # Deposit sample
         self.yr(-self._delta_y_hover, verbosity=verbosity)
         self.yr(-self._delta_y_slot, verbosity=verbosity)
@@ -873,7 +883,11 @@ class SampleExchangeRobot(Stage):
 
         # Move away from parking
         self.zabs(0, verbosity=verbosity)
+        while armz.moving==True:
+            time.sleep(.5)
         self.xabs(0, verbosity=verbosity)
+        while armx.moving==True:
+            time.sleep(.5)
         if gotoSafe == True:
             self.sequenceGotoSafe(verbosity=verbosity)
 

@@ -141,9 +141,15 @@ doc/source/_generated_images/*
 *.pybak
 .ipynb_checkpoints/
 *.visionenv
+*.bak
+*.dev
 
 # Audio Files
 *.wav
 
 # Users scripts
 users/
+
+# pixi environments
+.pixi/*
+!.pixi/config.toml

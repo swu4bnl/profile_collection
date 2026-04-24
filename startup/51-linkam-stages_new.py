@@ -720,7 +720,7 @@ class LinkamTensile(LinkamThermal):
         return self.POS.get()
 
     def movr(self, distance, velocity=None, verbosity=3):
-        # move to the absolute position
+        # move to the relative position
         relative_pos = distance
         if relative_pos > 0:  # open
             self.setDirection(0)

@@ -66,13 +66,16 @@ class IonChamber(Device):
     IonChamber is operated by Oxford 400, including 4 channels. 
     ch4 is used independently on the beam intensity monitoring at s4. 
     """
+    ch1 = Cpt(EpicsSignal, 'IC1_MON')
+    ch2 = Cpt(EpicsSignal, 'IC2_MON')
+    ch3 = Cpt(EpicsSignal, 'IC3_MON')
     ch4 = Cpt(EpicsSignal, 'IC4_MON')
     period_setpoint = Cpt(EpicsSignal, 'PERIOD_SP')
     period_readback = Cpt(EpicsSignal, 'PERIOD_MON')
     # period_readback = Cpt(EpicsSignal, 'ITIME_MON')
     count = Cpt(EpicsSignal, 'GETCS')
 
-    def setExposureTime(self, exptime):
+    def setExposureTime(self, exptime,**kwargs):
         while self.period_readback.get() != exptime:
             time.sleep(0.1)
             self.period_setpoint.set(exptime)
@@ -83,18 +86,34 @@ class IonChamber(Device):
 
     def read(self) -> OrderedDictType[str, Dict[str, Any]]:
 
-        print("Triggering Ion Chamber...")
+        # print("Triggering Ion Chamber...")
         self.count.put(0)
 
-        print("Reading Ion Chamber...")
+        # print("Reading Ion Chamber...")
         time.sleep(self.period_readback.get()+0.1)
-        print(f"Exposed {self.period_readback.get()} s")
+        # print(f"Exposed {self.period_readback.get()} s")
 
         now = datetime.now(timezone.utc).timestamp()
         
         return {
+            # f"{self.name}_ch_all": {
+            #     'value': np.log10(self.ch1.get()/2+self.ch2.get()/2),
+            #     'timestamp': now
+            # },
             f"{self.name}_ch4": {
                 'value': np.log10(self.ch4.get()),
+                'timestamp': now
+            },
+            f"{self.name}_ch3": {
+                'value': np.log10(self.ch3.get()),
+                'timestamp': now
+            },
+            f"{self.name}_ch2": {
+                'value': np.log10(abs(self.ch2.get())),
+                'timestamp': now
+            },
+            f"{self.name}_ch1": {
+                'value': np.log10(self.ch1.get()),
                 'timestamp': now
             },
             f"{self.name}_period_setpoint": {
@@ -117,13 +136,24 @@ class IonChamber(Device):
         yield from bps.mv(self.count,1) 
         # return self.ch4.get()   
         
-    def expose(self):
+    def expose(self, monitor_type='all'):
         # return self.count.get()
         RE(bps.mv(self.count,1)) 
-        return self.ch4.get()   
+
+        if monitor_type=='ch4':
+            return self.ch4.get()   
+        elif monitor_type=='ch1':
+            return self.ch1.get()
+        elif monitor_type=='ch2':
+            return self.ch2.get()
+        elif monitor_type=='ch3':
+            return self.ch3.get()
+        elif monitor_type=='all':
+            return (self.ch1.get()+self.ch2.get())/2
+        
 
     # def setExposureTime(self, time):
-    #     self.period_setpoint.put(time)
+    #     self.period_setpoint.ut(time)
     #     print("Set Ion Chamber exposure time to {} s".format(self.period_readback.get()))
 
 
@@ -143,7 +173,9 @@ ic = IonChamber("XF:11BMB-BI{IM:3}:", name="ic")
 # bpm.ch1.kind = 'hinted'
 # bpm.ch2.kind = 'hinted'
 # bpm.ch3.kind = 'hinted'
-ic.ch4.kind = 'hinted'
+ic.ch1.kind = 'hinted'
+ic.ch2.kind = 'hinted'
+# ic.ch4.kind = 'hinted'
 
 # bpm.sumX.kind = 'hinted'
 # bpm.sumY.kind = 'hinted'

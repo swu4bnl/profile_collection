@@ -571,7 +571,10 @@ def rock_motor_per_step(detector, motor, step, rock_motor=None, rock_motor_limit
     def inner_rock_and_read():
         # yield from trigger(detector)
         # status = yield from trigger(detector[0])
-        status = detector[0].trigger()
+
+        for _detector in detector:
+            status = _detector.trigger() ## need to trigger each detector separately, HZ, 20251024; Need to check both status
+        # status = detector[0].trigger()
         while not status.done:
             yield from rock()
         yield from mv(rock_motor, current)

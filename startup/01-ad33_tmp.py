@@ -18,7 +18,7 @@ except ImportError:
         """This supports changes to time series PV names in AD 3-3 Due to https://github.com/areaDetector/ADCore/pull/333"""
 
         _default_suffix = "Stats1:"
-        _suffix_re = "Stats\d:"
+        _suffix_re = r"Stats\d:"
         _html_docs = ["NDPluginStats.html"]
         _plugin_type = "NDPluginStats"
         _default_configuration_attrs = PluginBase._default_configuration_attrs + (
