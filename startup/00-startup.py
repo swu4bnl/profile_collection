@@ -57,7 +57,9 @@ tiled_inserter = TiledInserter()
 nslsii.configure_base(get_ipython().user_ns,
                       tiled_inserter,
                       publish_documents_with_kafka=True,
-                      redis_url="info.cms.nsls2.bnl.gov")
+                      redis_url="xf11bm-cms-redis1.nsls2.bnl.gov",
+                      redis_port = 6380,
+                      redis_ssl = True)
 
 print("Initializing Tiled reading client...\nMake sure you check for duo push.")
 tiled_reading_client = cat = from_profile("nsls2", username=None)["cms"]["raw"]
@@ -70,7 +72,7 @@ from pyOlog.ophyd_tools import *
 # Increase the timeout for EpicsSignal.get()
 # This beamline was occasionally getting ReadTimeoutErrors
 import ophyd
-ophyd.signal.EpicsSignalBase.set_defaults(timeout=120)
+ophyd.signal.EpicsSignalBase.set_defaults(timeout=120, connection_timeout=10.0)
 
 #this replaces RE() <
 from bluesky.utils import register_transform
