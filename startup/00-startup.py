@@ -58,8 +58,8 @@ nslsii.configure_base(get_ipython().user_ns,
                       tiled_inserter,
                       publish_documents_with_kafka=True,
                       redis_url="xf11bm-cms-redis1.nsls2.bnl.gov",
-                      redis_port = 6380,
-                      redis_ssl = True)
+                      redis_port=6380,
+                      redis_ssl=True)
 
 print("Initializing Tiled reading client...\nMake sure you check for duo push.")
 tiled_reading_client = cat = from_profile("nsls2", username=None)["cms"]["raw"]
