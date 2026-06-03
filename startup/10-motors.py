@@ -11,8 +11,8 @@ from datetime import datetime
 # class Slits(Device):
 #    top = Cpt(EpicsMotor, '-Ax:T}Mtr')
 #    bottom = Cpt(EpicsMotor, '-Ax:B}Mtr')
-beamline_stage = "default"  #for AB, please also change Smpl2-Y from 3... to -5 
-# beamline_stage = 'open_MAXS'
+# beamline_stage = "default"  #for AB, please also change Smpl2-Y from 3... to -5 
+beamline_stage = 'open_MAXS'
 # beamline_stage = 'BigHuber'
 
 print('Beamline_stage = {}'.format(beamline_stage))
@@ -337,9 +337,9 @@ bim5y = EpicsMotor("XF:11BMB-BI{IM:5-Ax:Y}Mtr", name="bim5y")
 # beamline_stage is defined by the current sample stage. 'default' is the regular vacuum chamber
 #'open_WAXS' is the alternative stage position with Pilatus300k as the WAXS detector.
 if beamline_stage == "default":
-    # smx = EpicsMotor("XF:11BMB-ES{Chm:Smpl-Ax:X}Mtr", name="smx")
+    smx = EpicsMotor("XF:11BMB-ES{Chm:Smpl-Ax:X}Mtr", name="smx")
 
-    smx = EpicsMotor("XF:11BMB-ES{Chm:Smpl2-Ax:X}Mtr", name="smx") # change to ESP302 and hardware IOC2, by RL at 20260313
+    # smx = EpicsMotor("XF:11BMB-ES{Chm:Smpl2-Ax:X}Mtr", name="smx") # change to ESP302 and hardware IOC2, by RL at 20260313
      
     smy = EpicsMotor("XF:11BMB-ES{Chm:Smpl-Ax:Y}Mtr", name="smy")
     # 2023-Sep-12, change sth and schi back to original setting
@@ -350,10 +350,17 @@ if beamline_stage == "default":
     # schi = EpicsMotor('XF:11BMB-ES{Chm:Smpl-Ax:theta}Mtr', name='schi')
 
 elif beamline_stage == "open_MAXS":
-    # smx = EpicsMotor("XF:11BMB-ES{Chm:Smpl2-Ax:X}Mtr", name="smx")
+    smx = EpicsMotor("XF:11BMB-ES{Chm:Smpl2-Ax:X}Mtr", name="smx")
     #changed by RL at 20260312 to change to a temporary stage (borrowed from IXS) for open area. 
-    smx = EpicsMotor("XF:11BMB-ES{Chm:Smpl3-Ax:X}Mtr", name="smx") 
+
+    # smx = EpicsMotor("XF:11BMB-ES{Chm:Smpl3-Ax:X}Mtr", name="smx") 
     smy = EpicsMotor("XF:11BMB-ES{Chm:Smpl2-Ax:Y}Mtr", name="smy")
+
+    #for test
+    # smx = EpicsMotor("XF:11BMB-ES{Chm:Smpl3-Ax:X}Mtr", name="smx") 
+    # smy = EpicsMotor("XF:11BMB-ES{Chm:Smpl-Ax:Y}Mtr", name="smy")
+    ##
+
     # smz = EpicsMotor("XF:11BMB-ES{Chm:Smpl2-Ax:Z}Mtr", name="smz")
     # sth = EpicsMotor('XF:11BMB-ES{SM:2-Ax:theta}Mtr', name='sth')
     # schi = EpicsMotor('XF:11BMB-ES{SM:2-Ax:chi}Mtr', name='schi')

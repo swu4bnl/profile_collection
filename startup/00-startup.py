@@ -4,7 +4,7 @@ import nslsii
 import os
 
 try:
-    os.environ.pop('TILED_API_KEY')   # Make sure no user-defined API key is set
+    os.environ.pop('TILED_API_KEY')
 except KeyError:
     pass
 

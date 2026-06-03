@@ -71,7 +71,7 @@ class LinkamThermal(Device):
         Initialize LinkamThermal device, step configuration, and position logging.
         """
         super().__init__(prefix, name=name, **kwargs)
-        self.folder = '/nsls2/data3/cms/shared/config/bluesky/profile_collection/startup/cfg/'
+        self.folder = '/nsls2/data/cms/shared/config/bluesky/profile_collection/startup/cfg/'
         self.config_file = Path(self.folder + 'linkam_stage_pos.cfg')
         self.csv_path = Path(self.folder + f'{name}_step.csv')
         self.step_columns = step_columns or self.step_columns
@@ -946,7 +946,9 @@ class LinkamTensile(LinkamThermal):
             self.off()
             self.stop()
 
-
-LThermal = LinkamThermal("XF:11BM-ES:{LINKAM}:", name="LinkamTrans")
-# LThermal = LinkamThermal("XF:11BM-ES:{LINKAM}:", name="LinkamGI")
-LTensile = LinkamTensile("XF:11BM-ES:{LINKAM}:", name="LinkamTensile")
+try:
+    LThermal = LinkamThermal("XF:11BM-ES:{LINKAM}:", name="LinkamTrans")
+    # LThermal = LinkamThermal("XF:11BM-ES:{LINKAM}:", name="LinkamGI")
+    LTensile = LinkamTensile("XF:11BM-ES:{LINKAM}:", name="LinkamTensile")
+except:
+    pass
