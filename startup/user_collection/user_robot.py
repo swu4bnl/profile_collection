@@ -56,23 +56,23 @@ if True:
 RE.md['experiment_alias_directory'] = 'robot_0'
 RE.md["userpy_alias_directory"] = '/nsls2/data/cms/shared/config/bluesky/profile_collection/users/2026-2/beamline/Robot'
 # cms.SAXS.setCalibration([742, 1081], 5.83, [-65, -73])  #2024 June 5m
-cms.SAXS.setCalibration([742, 1081], 5.03, [-65, -73]) 
+cms.SAXS.setCalibration([742, 1081], 5.93, [-65, -73]) 
 
 
 def smaxs_on():
     detselect([pilatus2M, pilatus8002])
-    MAXSx.move(-60)    
+    MAXSx.move(37)    
     MAXSy.move(-135)   
 
 def maxs_on():
     detselect([pilatus2M, pilatus8002])
-    MAXSx.move(-60)    
+    MAXSx.move(37)    
     MAXSy.move(-135)   
 
 def saxs_on():
     detselect([pilatus2M, pilatus8002])
-    MAXSx.move(-60)    
-    MAXSy.move(-105)   
+    MAXSx.move(37)    
+    MAXSy.move(-100)   
   
 
 def vacOn():
@@ -891,6 +891,12 @@ class Sample(SampleGISAXS):
 
             yield from bps.wait(group='det')
 
+            #33 Ensure burst-mode detector runs emit `primary` stream events
+            yield from bps.create(name="primary")
+            for detector in detectors:
+                yield from bps.read(detector)
+            yield from bps.save()
+
             #total_time = num_frames*exposure_period
             #moving_interval = 1
             # for index in range(int(total_time/moving_interval)):
@@ -1017,6 +1023,12 @@ class Sample(SampleGISAXS):
             yield from bps.mv(TTL2, 1) #TLL on
 
             yield from bps.wait(group='det')
+
+            #33 Ensure burst-mode detector runs emit `primary` stream events
+            yield from bps.create(name="primary")
+            for detector in detectors:
+                yield from bps.read(detector)
+            yield from bps.save()
 
             #total_time = num_frames*exposure_period
             #moving_interval = 1
@@ -1400,7 +1412,7 @@ class Sample(SampleGISAXS):
                 status = yield from bps.trigger(detector, group='det')
 
             # status = yield from bps.trigger(pilatus2M, group='det')
-            yield from bps.create(name='detector')
+            yield from bps.create(name='primary')
 
             yield from bps.sleep(1)
             for index, period in enumerate(periods):
@@ -1469,6 +1481,9 @@ class Sample(SampleGISAXS):
             yield from detector.setExposureNumber(1)
 
 
+samS = Sample('samSpinner')
+samT = Sample('samThermal')
+
 
 # %run -i /nsls2/data/cms/legacy/xf11bm/data/2024_3/GDoerk/user_spray.py
 '''
@@ -1480,5 +1495,41 @@ smy = 15.21
 sth = 0.30093749999999986
 
 
+pass-320406 [245]: samT.gotoOrigin()
+samThermal.th = 0.000 deg       
+pass-320406 [171]: wsam()
+smx = 62.300000000000004
+smy = 13.899650000000001
+sth = 0.41000000000000014
 
+
+#during spinning
+pass-320406 [304]: samS.gotoOrigin()
+samSpinner.th = 0.000 deg      
+pass-320406 [305]: wsam()
+smx = -72.0
+smy = 11.770000000000001
+sth = 0.6075000000000017
+
+############protocol for robot run
+
+
+#spinning first
+samS.name = 'samSpinning_run1'
+samS.gotoOrigin()
+samS.thabs(.5)
+#get solution and antisolvent ready, start spin coating and measurement
+RE(samS.runSpinner_duo(num_frames=400, speeds=[2], periods=[30], exposure_time=0.095, exposure_period=0.1))
+
+#move to thermal stage
+samT.name = 'samThermal_run1'
+samT.gotoOrigin()
+samT.thabs(.5)
+vacOn()
+sam.series_measure(num_frames=1200,  exposure_time=0.095, exposure_period=0.1)
+#put the sample onto the thermal stage
+
+
+
+vacOff()
 '''
