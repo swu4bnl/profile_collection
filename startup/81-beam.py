@@ -2168,8 +2168,8 @@ class CMS_Beamline(Beamline):
             self.beam.setTransmission(1e-8)
 
         # mov(bsx, -10.95)
-        # bsx.move(self.bsx_pos+5)
-        bsx.move(self.bsx_pos + 3)
+        bsx.move(self.bsx_pos+5)
+        # bsx.move(self.bsx_pos + 3)
 
         # detselect(pilatus300, suffix='_stats4_total')
         # caput('XF:11BMB-ES{Det:SAXS}:cam1:AcquireTime', 0.5)
@@ -3372,7 +3372,7 @@ class CMS_Beamline_GISAXS(CMS_Beamline):
         # mov(bsx, -16.53+3) # 07/20/17, GISAXS, 5m, CRoss
         # mov(bsx, self.bsx_pos+3)
 
-        bsx.move(self.bsx_pos + 3)
+        bsx.move(self.bsx_pos + 5)
 
         self.setReflectedBeamROI()
         self.setDirectBeamROI()

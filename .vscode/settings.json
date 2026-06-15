@@ -1,5 +1,28 @@
 {
-    "python-envs.defaultEnvManager": "ms-python.python:conda",
-    "python-envs.defaultPackageManager": "ms-python.python:conda",
-    "python-envs.pythonProjects": []
-}
+    "python-envs.defaultEnvManager": "ms-python.python:system"
+} // {
+//     "python-envs.defaultEnvManager": "ms-python.python:system",
+//     "python.analysis.languageServerMode": "light"
+// } // {
+//     "python-envs.defaultEnvManager": "ms-python.python:system",
+//     "python-envs.defaultPackageManager": "ms-python.python:pip",
+//     "python.defaultInterpreterPath": "/home/xf11bm/.cache/rattler/cache/envs/cms-profile-collection-15379365194774168494/envs/terminal/bin/python",
+//     "python.analysis.typeCheckingMode": "off",
+//     "python.analysis.diagnosticMode": "openFilesOnly",
+//     "python.analysis.ignore": [
+//         "startup/*.py",
+//         "startup/user_collection/*.py"
+//     ],
+//     "python.analysis.diagnosticSeverityOverrides": {
+//         "reportMissingImports": "none",
+//         "reportPrivateImportUsage": "none",
+//         "reportUndefinedVariable": "warning",
+//         "reportGeneralTypeIssues": "none",
+//         "reportAttributeAccessIssue": "none",
+//         "reportArgumentType": "none",
+//         "reportCallIssue": "none",
+//         "reportOptionalMemberAccess": "none",
+//         "reportOptionalSubscript": "none",
+//         "reportWildcardImportFromLibrary": "none"
+//     }
+// }

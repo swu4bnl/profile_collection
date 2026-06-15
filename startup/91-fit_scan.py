@@ -1194,7 +1194,7 @@ def fit_edge(
         x_span = abs(np.max(livetable.xdata) - np.min(livetable.xdata))
 
         def model(v, x):
-            return v["prefactor"] / (1 + np.exp(+(x - v["x0"]) / v["sigma"]))
+            return v["prefactor"] / (1 + np.exp(+(np.array(x) - v["x0"]) / v["sigma"]))
 
         def func2minimize(params, x, data):
             v = params.valuesdict()
@@ -1233,7 +1233,7 @@ def fit_edge(
                 np.max(livetable.xdata) + xe * x_span,
                 num=500,
             )
-            fit_y = model(lm_result.params.valuesdict(), fit_x)
+            fit_y = model(lm_result.params.valuesdict(), np.array(fit_x))
             # liveplot.add_line(fit_x, fit_y, color='b', linewidth=2.5)
 
         # Detect bad fits

@@ -2383,7 +2383,7 @@ class Sample_Generic(CoordinateSystem):
             # link_name = md["filename"] + '_' + str(RE.md['scan_id']-1) + '_' + detname + '.tiff'
 
             print(link_name)
-            link_folder = RE.md["userpy_alias_directory"] + '/' + RE.md['experiment_alias_directory'] + '/' + subdir 
+            link_folder = RE.md["userpy_alias_directory"] + '/' + RE.md['experiment_alias_directory'].split('/')[-1] + '/' + subdir 
             if os.path.exists(link_folder) == False:
                 os.makedirs(link_folder)
 
@@ -2395,54 +2395,8 @@ class Sample_Generic(CoordinateSystem):
             # link_name = "{}/{}{}_000000_{}.tiff".format(RE.md["userpy_alias_directory"], subdir, savename, detname).replace('//','/')
             # if 'camera' in detector.name:
             #     link_name = "{}/{}{}_000000_{}.png".format(RE.md["experiment_alias_directory"], subdir, savename, detname).replace('//','/')
-            print(f"  A symlink will be created at: {link_folder}experiments/{link_name}")
+            print(f"  Cusomized symlink: {link_folder}/{link_name}")
             
-
-            # if True:
-            #     # self.set_attribute('exposure_time', caget('XF:11BMB-ES{Det:PIL2M}:cam1:AcquireTime'))
-            #     self.set_attribute("exposure_time", detector.cam.acquire_time.get())  # RL, 20210831
-
-            #     # Create symlink
-            #     # link_name = '{}/{}{}'.format(RE.md['experiment_alias_directory'], subdir, md['filename'])
-            #     # savename = md['filename'][:-5]
-
-            #     # savename = self.get_savename(savename_extra=extra)
-            #     savename = md["filename"]
-            #     link_name = "{}/{}{}_saxs.tiff".format(RE.md["experiment_alias_directory"], subdir, savename)
-            #     # link_name = '{}/{}{}_{:04d}_saxs.tiff'.format(RE.md['experiment_alias_directory'], subdir, savename, RE.md['scan_id']-1)
-
-            #     if os.path.isfile(link_name):
-            #         i = 1
-            #         while os.path.isfile("{}.{:d}".format(link_name, i)):
-            #             i += 1
-            #         os.rename(link_name, "{}.{:d}".format(link_name, i))
-            #     os.symlink(filename, link_name)
-
-            #     if verbosity >= 3:
-            #         print("  Data linked as: {}".format(link_name))
-                    
-
-
-            # if os.path.isfile(link_name):
-            #     i = 1
-            #     while os.path.isfile("{}.{:d}".format(link_name, i)):
-            #         i += 1
-            #     os.rename(link_name, "{}.{:d}".format(link_name, i))
-
-
-            # #debug the losing data issue on pil2m. suggested by T. Caswell
-            # # with open(link_name, 'rb') as fin:
-            # #     h = hashlib.md5(fin.read(1024)).hexdigest()
-            # # with open(link_name + '.md5', 'w') as fout:
-            # #     fout.write(h)
-
-
-            # if verbosity >= 3:
-            #     print("  Data linked as: {}".format(link_name))
-            #     if not os.path.isfile(os.readlink(link_name)): #added by RL, 20231109
-            #         raise ValueError('NO IMAGE OUTPUT.')
-
-        # return filenames
 
     #before data security @ 2025-3
     def _old_handle_file(self, detector, extra=None, verbosity=3, subdirs=True, linksave=True, **md):
@@ -3345,8 +3299,12 @@ class Sample_Generic(CoordinateSystem):
             # for index in range(int(total_time/moving_interval)):
                 # yield from bps.mov(smx, smx.position+0.1*index)
                 # yeild from sleep(1)
+            
+            #33 Ensure burst-mode detector runs emit `primary` stream events
+            yield from bps.create(name="primary")
             for detector in detectors:
                 yield from bps.read(detector)
+            yield from bps.save()
 
 
         yield from bpp.run_wrapper(
@@ -5274,12 +5232,19 @@ def handlefilename(uids, detector=None, output_folder=None):
     
     for uid in uids:
         h = db[uid]
+        print(uid)
+        try:
+            h.start['beamline_mode']
+        except:
+            continue
 
         for detector_i in h.start['detectors']:
             if detector_i == 'pilatus800k-1':
                 detector_name = 'waxs'
-
-                link_name = h.start['filename'] + '_000000_' + detector_name + '.tiff'
+                try:
+                    link_name = h.start['filename'] + '_000000_' + detector_name + '.tiff'
+                except:
+                    pass
                 for name, doc in h.documents():
                     if name == "resource":
                         rdoc = doc
@@ -5301,8 +5266,21 @@ def handlefilename(uids, detector=None, output_folder=None):
                     if os.path.exists(output_folder + '/' + detector_name + '/raw/') == False:
                         os.makedirs(output_folder + '/' + detector_name + '/raw/')
                 
-                os.symlink(filename, link_name)
-                
+                # try:
+                # os.symlink(filename, link_name)
+                if not os.path.exists(link_name):
+                    os.symlink(filename, link_name)
+                else:
+                    # If it exists but is a broken link or old file, 
+                    # you might want to replace it:
+                    os.remove(link_name)
+                    os.symlink(filename, link_name)
+
+
+
+                # except:
+                #     continue 
+
             elif detector_i == 'pilatus2m-1':
                 detector_name = 'saxs'
 
