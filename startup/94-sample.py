@@ -33,43 +33,137 @@ import functools
 import hashlib
 
 
-def stitch_tiling_decorator(tiling_mode):
-    """Decorator that injects shared stitching metadata for tiled acquisitions.
-    
+# ---------------------------------------------------------------------------
+# Tiling configuration
+# Each entry defines per-tile detector offsets (relative to the saved origin)
+# and the physical detector_position label used in metadata.
+# ---------------------------------------------------------------------------
+TILING_CONFIGS = {
+    "ygaps": [
+        {"label": "pos1", "detector_position": "lower",       "SAXSy": 0.0,  "SAXSx": 0.0,  "WAXSy": 0.0,  "WAXSx": 0.0},
+        {"label": "pos2", "detector_position": "upper",       "SAXSy": 5.16, "SAXSx": 0.0,  "WAXSy": 5.16, "WAXSx": 0.0},
+    ],
+    "xygaps": [
+        {"label": "pos1", "detector_position": "lower_left",  "SAXSy": 0.0,  "SAXSx": 0.0,  "WAXSy": 0.0,  "WAXSx": 0.0},
+        {"label": "pos2", "detector_position": "upper_left",  "SAXSy": 5.16, "SAXSx": 0.0,  "WAXSy": 5.16, "WAXSx": 0.0},
+        {"label": "pos4", "detector_position": "upper_right", "SAXSy": 5.16, "SAXSx": 5.16, "WAXSy": 5.16, "WAXSx": -5.16},
+        {"label": "pos3", "detector_position": "lower_right", "SAXSy": 0.0,  "SAXSx": 5.16, "WAXSy": 0.0,  "WAXSx": -5.16},
+    ],
+}
+
+
+def with_tiling(tiling_mode):
+    """Decorator factory that wraps detector motion and injects stitching metadata.
+
+    The decorator moves the detector to each tile position, calls the wrapped
+    function once per tile, then restores detector positions unconditionally via
+    try/finally.  Because the wrapped function is called once per tile position,
+    the same decorator works for both measurement patterns:
+
+    **Immediate paired** (one sample, one call):
+
+    .. code-block:: python
+
+        @with_tiling("ygaps")
+        def measure_one(sample, exposure_time=None, extra=None, **md):
+            sample.measure_single(exposure_time=exposure_time, extra=extra, **md)
+
+        measure_one(sample, exposure_time=0.5)
+        # -> measure_single called at pos1 (lower), then at pos2 (upper)
+
+    **Block measurement** (many samples, one call moves all at once):
+
+    .. code-block:: python
+
+        @with_tiling("ygaps")
+        def measure_series(samples, exposure_time=None, extra=None, **md):
+            for s in samples:
+                s.measure_single(exposure_time=exposure_time, extra=extra, **md)
+
+        measure_series(samples, exposure_time=0.5)
+        # -> all samples measured at pos1, then all measured at pos2
+
+    Per-tile metadata injected into ``**md``:
+        - ``detector_position`` : physical label (e.g. ``"lower"``, ``"upper_left"``)
+        - ``stitch_tile_label`` : position key (``"pos1"``, ``"pos2"``, ...)
+        - ``stitch_tile_index`` : 1-based tile index
+        - ``stitch_tile_total`` : total number of tiles
+        - ``stitch_group_id``   : unique ID shared by all tiles in one tiling call
+        - ``stitch_tiling_mode``: the tiling mode string
+
+    The ``extra`` keyword argument is intercepted and a tile-label suffix is
+    appended automatically (e.g. ``extra="film"`` becomes ``"film_pos1"``).
+
     Parameters
     ----------
     tiling_mode : str
-        The tiling mode ('xygaps' or 'ygaps') to be stored in metadata.
-    
-    Returns
-    -------
-    function
-        Wrapped method with stitching metadata injected.
+        Key into ``TILING_CONFIGS`` (``'ygaps'`` or ``'xygaps'``).
     """
-    def decorator(method):
-        @functools.wraps(method)
-        def wrapper(self, exposure_time=None, extra=None, measure_type="measure", verbosity=3, **md):
-            # Create group ID for grouping related tile measurements
+    if tiling_mode not in TILING_CONFIGS:
+        raise ValueError(
+            "Unknown tiling_mode {!r}. Valid modes: {}".format(
+                tiling_mode, list(TILING_CONFIGS)
+            )
+        )
+    tiles = TILING_CONFIGS[tiling_mode]
+    tile_total = len(tiles)
+
+    def decorator(func):
+        @functools.wraps(func)
+        def wrapper(*args, extra=None, **md):
+            # --- shared stitching group id (generated once per tiling call) ---
             if "stitch_group_id" not in md:
                 scan_id = RE.md.get("scan_id", 0)
+                name = getattr(args[0], "name", "block") if args else "block"
                 md["stitch_group_id"] = "{}_{}_{}".format(
-                    self.name,
+                    name,
                     int(scan_id),
                     datetime.now().strftime("%Y%m%dT%H%M%S"),
                 )
-            
             md["stitch_tiling_mode"] = tiling_mode
-            md["stitch_sample_name"] = self.name
             RE.md["tiling"] = tiling_mode
-            
-            return method(
-                self,
-                exposure_time=exposure_time,
-                extra=extra,
-                measure_type=measure_type,
-                verbosity=verbosity,
-                **md,
-            )
+
+            # --- save current detector positions ---
+            SAXSy_o = SAXSy.user_readback.value
+            SAXSx_o = SAXSx.user_readback.value
+            WAXSy_o = WAXSy.user_readback.value
+            WAXSx_o = WAXSx.user_readback.value
+
+            try:
+                for i, tile in enumerate(tiles):
+                    # move detectors to tile offset from saved origin
+                    if pilatus2M in cms.detector:
+                        SAXSy.move(SAXSy_o + tile["SAXSy"])
+                        SAXSx.move(SAXSx_o + tile["SAXSx"])
+                    if pilatus800 in cms.detector:
+                        WAXSy.move(WAXSy_o + tile["WAXSy"])
+                        WAXSx.move(WAXSx_o + tile["WAXSx"])
+
+                    # build per-tile metadata (copy so each tile is independent)
+                    tile_md = dict(md)
+                    tile_md["detector_position"] = tile["detector_position"]
+                    tile_md["stitch_tile_label"] = tile["label"]
+                    tile_md["stitch_tile_index"] = i + 1
+                    tile_md["stitch_tile_total"] = tile_total
+                    tile_md["stitchback"] = True
+
+                    # append tile label to the extra filename suffix
+                    tile_extra = (
+                        tile["label"] if extra is None
+                        else "{}_{}".format(extra, tile["label"])
+                    )
+
+                    func(*args, extra=tile_extra, **tile_md)
+
+            finally:
+                # restore detector positions unconditionally
+                if pilatus2M in cms.detector:
+                    SAXSy.move(SAXSy_o)
+                    SAXSx.move(SAXSx_o)
+                if pilatus800 in cms.detector:
+                    WAXSy.move(WAXSy_o)
+                    WAXSx.move(WAXSx_o)
+
         return wrapper
     return decorator
 
@@ -2936,208 +3030,35 @@ class Sample_Generic(CoordinateSystem):
               'xygaps' : 4-tile coverage (pos1, pos2, pos3, pos4)
               'ygaps' : 2-tile coverage (pos1, pos2)
         """
+        
+        """
+        # This is exactly equivalent to writing:
+        ```python
+        @with_tiling("ygaps")          # applied at class definition, mode is fixed
+        def measure_single(self, ...):
+            ...
 
-        if tiling == "xygaps":
-            return self._measure_xygaps(
+        ```
+        """
+        
+        if tiling in TILING_CONFIGS:
+            with_tiling(tiling)(type(self).measure_single)(
+                self,
                 exposure_time=exposure_time,
                 extra=extra,
                 measure_type=measure_type,
                 verbosity=verbosity,
                 **md,
             )
-
-        elif tiling == "ygaps":
-            return self._measure_ygaps(
-                exposure_time=exposure_time,
-                extra=extra,
-                measure_type=measure_type,
-                verbosity=verbosity,
-                **md,
-            )
-
         else:
             # Just do a normal measurement
             self.measure_single(
-                exposure_time=exposure_time, extra=extra, measure_type=measure_type, verbosity=verbosity, **md
+                exposure_time=exposure_time,
+                extra=extra,
+                measure_type=measure_type,
+                verbosity=verbosity,
+                **md,
             )
-
-    def _measure_tile(self, position_label, tile_index, tile_total, detector_position,
-                      exposure_time=None, extra=None, measure_type="measure", verbosity=3, **md):
-        """Measure a single tile in a stitched acquisition.
-        
-        Parameters
-        ----------
-        position_label : str
-            Label for this position (pos1, pos2, pos3, pos4)
-        tile_index : int
-            Index of this tile in the series (1-based)
-        tile_total : int
-            Total number of tiles in the series
-        detector_position : str
-            Detector position identifier (pos1, pos2, pos3, pos4)
-        """
-        extra_current = position_label if extra is None else "{}_{}".format(extra, position_label)
-        md["detector_position"] = detector_position
-        md["stitch_tile_label"] = position_label
-        md["stitch_tile_index"] = tile_index
-        md["stitch_tile_total"] = tile_total
-        
-        self.measure_single(
-            exposure_time=exposure_time,
-            extra=extra_current,
-            measure_type=measure_type,
-            verbosity=verbosity,
-            stitchback=True,
-            **md,
-        )
-
-    @stitch_tiling_decorator("xygaps")
-    def _measure_xygaps(self, exposure_time=None, extra=None, measure_type="measure", verbosity=3, **md):
-        """Measure 4-tile xygaps configuration (2x2 grid).
-        
-        Tile layout:
-            pos2 (upper_left) | pos4 (upper_right)
-            __________________|__________________
-            pos1 (lower_left) | pos3 (lower_right)
-        """
-        # Save original positions
-        SAXSy_o = SAXSy.user_readback.value
-        SAXSx_o = SAXSx.user_readback.value
-        WAXSy_o = WAXSy.user_readback.value
-        WAXSx_o = WAXSx.user_readback.value
-
-        self.pos1_scanID = RE.md["scan_id"] - 1
-        RE.md["pos1_scanID"] = self.pos1_scanID
-
-        # --- Tile pos1: lower_left ---
-        self._measure_tile(
-            position_label="pos1",
-            detector_position="lower_left",
-            extra=extra,
-            measure_type=measure_type,
-            verbosity=verbosity,
-            **md,
-        )
-
-        # --- Tile pos2: upper_left ---
-        if pilatus2M in cms.detector:
-            SAXSy.move(SAXSy_o + 5.16)
-        if pilatus800 in cms.detector:
-            WAXSy.move(WAXSy_o + 5.16)
-
-        self._measure_tile(
-            position_label="pos2",
-            tile_index=2,
-            tile_total=4,
-            detector_position="pos2",
-            exposure_time=exposure_time,
-            extra=extra,
-            measure_type=measure_type,
-            verbosity=verbosity,
-            **md,
-        )
-
-        # --- Tile pos4: upper_right ---
-        if pilatus2M in cms.detector:
-            SAXSx.move(SAXSx_o + 5.16)
-            SAXSy.move(SAXSy_o + 5.16)
-        if pilatus800 in cms.detector:
-            WAXSx.move(WAXSx_o - 5.16)
-            WAXSy.move(WAXSy_o + 5.16)
-
-        self._measure_tile(
-            position_label="pos4",
-            tile_index=3,
-            tile_total=4,
-            detector_position="pos4",
-            exposure_time=exposure_time,
-            extra=extra,
-            measure_type=measure_type,
-            verbosity=verbosity,
-            **md,
-        )
-
-        # --- Tile pos3: lower_right ---
-        if pilatus2M in cms.detector:
-            SAXSx.move(SAXSx_o + 5.16)
-            SAXSy.move(SAXSy_o)
-        if pilatus800 in cms.detector:
-            WAXSx.move(WAXSx_o - 5.16)
-            WAXSy.move(WAXSy_o)
-
-        self._measure_tile(
-            position_label="pos3",
-            tile_index=4,
-            tile_total=4,
-            detector_position="pos3",
-            exposure_time=exposure_time,
-            extra=extra,
-            measure_type=measure_type,
-            verbosity=verbosity,
-            **md,
-        )
-
-        # --- Restore original positions ---
-        if WAXSx.user_readback.value != WAXSx_o:
-            WAXSx.move(WAXSx_o)
-        if WAXSy.user_readback.value != WAXSy_o:
-            WAXSy.move(WAXSy_o)
-        if SAXSx.user_readback.value != SAXSx_o:
-            SAXSx.move(SAXSx_o)
-        if SAXSy.user_readback.value != SAXSy_o:
-            SAXSy.move(SAXSy_o)
-
-    @stitch_tiling_decorator("ygaps")
-    def _measure_ygaps(self, exposure_time=None, extra=None, measure_type="measure", verbosity=3, **md):
-        """Measure 2-tile ygaps configuration (1x2 grid).
-        
-        Tile layout:
-            pos2 (upper)
-            ___________
-            pos1 (lower)
-        """
-        # Save original positions
-        SAXSy_o = SAXSy.user_readback.value
-        SAXSx_o = SAXSx.user_readback.value
-        WAXSy_o = WAXSy.user_readback.value
-        WAXSx_o = WAXSx.user_readback.value
-
-        # --- Tile pos1: lower ---
-        self._measure_tile(
-            position_label="pos1",
-            tile_index=1,
-            tile_total=2,
-            detector_position="pos1",
-            exposure_time=exposure_time,
-            extra=extra,
-            measure_type=measure_type,
-            verbosity=verbosity,
-            **md,
-        )
-
-        # --- Tile pos2: upper ---
-        if pilatus2M in cms.detector:
-            SAXSy.move(SAXSy_o + 5.16)
-        if pilatus800 in cms.detector:
-            WAXSy.move(WAXSy_o + 5.16)
-
-        self._measure_tile(
-            position_label="pos2",
-            tile_index=2,
-            tile_total=2,
-            detector_position="pos2",
-            exposure_time=exposure_time,
-            extra=extra,
-            measure_type=measure_type,
-            verbosity=verbosity,
-            **md,
-        )
-
-        # --- Restore original positions ---
-        if SAXSy.user_readback.value != SAXSy_o:
-            SAXSy.move(SAXSy_o)
-        if WAXSy.user_readback.value != WAXSy_o:
-            WAXSy.move(WAXSy_o)
 
     def measureRock(
         self,
