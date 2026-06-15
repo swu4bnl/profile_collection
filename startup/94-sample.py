@@ -3012,10 +3012,7 @@ class Sample_Generic(CoordinateSystem):
         # --- Tile pos1: lower_left ---
         self._measure_tile(
             position_label="pos1",
-            tile_index=1,
-            tile_total=4,
-            detector_position="pos1",
-            exposure_time=exposure_time,
+            detector_position="lower_left",
             extra=extra,
             measure_type=measure_type,
             verbosity=verbosity,
