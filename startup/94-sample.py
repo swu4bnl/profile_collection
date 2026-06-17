@@ -2744,6 +2744,7 @@ class Sample_Generic(CoordinateSystem):
         )
         # remove_last_Pilatus_series()
 
+    # This method is not in use
     def _measure(
         self,
         exposure_time=None,
@@ -4010,7 +4011,7 @@ class Sample_Generic(CoordinateSystem):
             print('Don\'t Ctrl +C !!')
             self.handle_fileseries(detector, num_frames=num_frames, extra=extra, verbosity=verbosity, **md)
 
-
+    # This method is not in use
     def _series_measure(
         self,
         num_frames,
