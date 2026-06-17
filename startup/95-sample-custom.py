@@ -2185,196 +2185,33 @@ class GIBar(PositionalHolder):
             if sample.detector == "WAXS":
                 sample.do_WAXS()
 
-    def doSamples_Stitch(self, angles=None, exposure_time=None, extra=None, tiling=None, verbosity=3, **md):
+    @with_tiling()
+    def doSamples_Stitch(self, angles=None, exposure_time=None, extra=None, **md):
+        """Measure samples at different incident angles (with optional tiling via @with_tiling decorator).
+        
+        Call with tiling=None (default) for single measurement at each angle, or tiling='ygaps'/'xygaps'
+        for tiled measurements. Detector movement and tiling metadata are handled by decorator.
+        
+        Usage:
+            holder.doSamples_Stitch(angles=[0.1, 0.15, 0.2])  # single measurement per angle
+            holder.doSamples_Stitch(angles=[0.1, 0.15], tiling='ygaps')  # tiled at each angle
+        """
         if exposure_time == None:
             exposure_time = self.exposure_time
 
-        # measure the incident angles first and then change the tiling features.
-        if tiling == None:
-            if angles is None:
-                if sample.incident_angles == None:
-                    incident_angles = self.incident_angles_default
-                else:
-                    incident_angles = self.incident_angles
+        if angles is None:
+            angles = self.incident_angles_default
+
+        for sample in self.getSamples():
+            sample.gotoOrigin()
             for angle in angles:
-                self.measureIncidentAngle(angle, exposure_time=exposure_time, extra=extra, tiling=tiling, **md)
-
-        elif tiling == "ygaps":
-            SAXSy_o = SAXSy.user_readback.value
-            SAXSx_o = SAXSx.user_readback.value
-            WAXSy_o = WAXSy.user_readback.value
-            WAXSx_o = WAXSx.user_readback.value
-
-            # pos1
-            for sample in self.getSamples():
-                sample.gotoOrigin()
-                if angles is None:
-                    if sample.incident_angles == None:
-                        incident_angles = self.incident_angles_default
-                    else:
-                        incident_angles = self.incident_angles
-                for angle in angles:
-                    sample.thabs(angle)
-                    time.sleep(0.5)
-                    extra_current = "pos1" if extra is None else "{}_pos1".format(extra)
-                    md["detector_position"] = "lower"
-                    sample.measure_single(
-                        exposure_time=exposure_time,
-                        extra=extra_current,
-                        verbosity=verbosity,
-                        stitchback=True,
-                        **md,
-                    )
-
-            # pos2
-            # MAXSy_o = MAXSy.user_readback.value
-            if pilatus2M in cms.detector:
-                SAXSy.move(SAXSy_o + 5.16)
-            if pilatus800 in cms.detector:
-                WAXSy.move(WAXSy_o + 5.16)
-            if pilatus300 in cms.detector:
-                MAXSy.move(MAXSy_o + 5.16)
-
-            for sample in self.getSamples():
-                sample.gotoOrigin()
-                if angles is None:
-                    if sample.incident_angles == None:
-                        incident_angles = self.incident_angles_default
-                    else:
-                        incident_angles = self.incident_angles
-                for angle in angles:
-                    sample.thabs(angle)
-                    time.sleep(0.5)
-                    extra_current = "pos2" if extra is None else "{}_pos2".format(extra)
-                    md["detector_position"] = "upper"
-                    sample.measure_single(
-                        exposure_time=exposure_time,
-                        extra=extra_current,
-                        verbosity=verbosity,
-                        stitchback=True,
-                        **md,
-                    )
-
-            if SAXSy.user_readback.value != SAXSy_o:
-                SAXSy.move(SAXSy_o)
-            if WAXSy.user_readback.value != WAXSy_o:
-                WAXSy.move(WAXSy_o)
-            # if MAXSy.user_readback.value != MAXSy_o:
-            # MAXSy.move(MAXSy_o)
-
-        elif tiling == "xygaps":
-            SAXSy_o = SAXSy.user_readback.value
-            SAXSx_o = SAXSx.user_readback.value
-            WAXSy_o = WAXSy.user_readback.value
-            WAXSx_o = WAXSx.user_readback.value
-
-            # pos1
-            for sample in self.getSamples():
-                if angles is None:
-                    if sample.incident_angles == None:
-                        incident_angles = self.incident_angles_default
-                    else:
-                        incident_angles = self.incident_angles
-
-                sample.gotoOrigin()
-                for angle in angles:
-                    sample.thabs(angle)
-                    time.sleep(0.5)
-                    extra_current = "pos1" if extra is None else "{}_pos1".format(extra)
-                    md["detector_position"] = "lower_left"
-                    sample.measure_single(
-                        exposure_time=exposure_time,
-                        extra=extra_current,
-                        verbosity=verbosity,
-                        stitchback=True,
-                        **md,
-                    )
-
-            # pos2
-            if pilatus2M in cms.detector:
-                SAXSy.move(SAXSy_o + 5.16)
-            if pilatus800 in cms.detector:
-                WAXSy.move(WAXSy_o + 5.16)
-            if pilatus300 in cms.detector:
-                MAXSy.move(MAXSy_o + 5.16)
-            for sample in self.getSamples():
-                sample.gotoOrigin()
-                for angle in angles:
-                    sample.thabs(angle)
-                    time.sleep(0.2)
-                    extra_current = "pos2" if extra is None else "{}_pos2".format(extra)
-                    md["detector_position"] = "upper"
-                    sample.measure_single(
-                        exposure_time=exposure_time,
-                        extra=extra_current,
-                        verbosity=verbosity,
-                        stitchback=True,
-                        **md,
-                    )
-
-            # pos4  #comment out to save time
-            if pilatus2M in cms.detector:
-                SAXSx.move(SAXSx_o + 5.16)
-                SAXSy.move(SAXSy.o + 5.16)
-            if pilatus800 in cms.detector:
-                WAXSx.move(WAXSx_o - 5.16)
-                WAXSy.move(WAXSy_o + 5.16)
-            for sample in self.getSamples():
-                sample.gotoOrigin()
-                if angles is None:
-                    if sample.incident_angles == None:
-                        incident_angles = self.incident_angles_default
-                    else:
-                        incident_angles = self.incident_angles
-                for angle in angles:
-                    sample.thabs(angle)
-                    time.sleep(0.2)
-                    extra_current = "pos4" if extra is None else "{}_pos4".format(extra)
-                    md["detector_position"] = "upper_right"
-                    sample.measure_single(
-                        exposure_time=exposure_time,
-                        extra=extra_current,
-                        verbosity=verbosity,
-                        stitchback=True,
-                        **md,
-                    )
-
-            # pos3
-            if pilatus2M in cms.detector:
-                SAXSx.move(SAXSx_o + 5.16)
-                SAXSy.move(SAXSy_o)
-            if pilatus800 in cms.detector:
-                WAXSx.move(WAXSx_o - 5.16)
-                WAXSy.move(WAXSy_o)
-            for sample in self.getSamples():
-                sample.gotoOrigin()
-                if angles is None:
-                    if sample.incident_angles == None:
-                        incident_angles = self.incident_angles_default
-                    else:
-                        incident_angles = self.incident_angles
-                for angle in angles:
-                    sample.thabs(angle)
-                    time.sleep(0.2)
-                    extra_current = "pos3" if extra is None else "{}_pos3".format(extra)
-                    md["detector_position"] = "lower_right"
-                    sample.measure_single(
-                        exposure_time=exposure_time,
-                        extra=extra_current,
-                        verbosity=verbosity,
-                        stitchback=True,
-                        **md,
-                    )
-
-            if WAXSx.user_readback.value != WAXSx_o:
-                WAXSx.move(WAXSx_o)
-            if WAXSy.user_readback.value != WAXSy_o:
-                WAXSy.move(WAXSy_o)
-
-            if SAXSx.user_readback.value != SAXSx_o:
-                SAXSx.move(SAXSx_o)
-            if SAXSy.user_readback.value != SAXSy_o:
-                SAXSy.move(SAXSy_o)
+                sample.thabs(angle)
+                time.sleep(0.5)
+                sample.measure_single(
+                    exposure_time=exposure_time,
+                    extra=extra,
+                    **md,
+                )
 
 
 class CapillaryHolder(PositionalHolder):
@@ -2409,135 +2246,23 @@ class CapillaryHolder(PositionalHolder):
 
         return +1 * self.x_spacing * (slot - 8)
 
-    def measure_Stitch(self, exposure_time=None, extra=None, tiling=None, verbosity=3, **md):
-        # measure the incident angles first and then change the tiling features.
-        if tiling == None:
-            for sample in self.getSamples():
-                sample.gotoOrigin()
-                sample.measure_single(
-                    exposure_time=exposure_time, extra=extra_current, verbosity=verbosity, stitchback=True, **md
-                )
-
-        elif tiling == "ygaps":
-            # pos1
-            for sample in self.getSamples():
-                sample.gotoOrigin()
-                time.sleep(0.2)
-                extra_current = "pos1" if extra is None else "{}_pos1".format(extra)
-                md["detector_position"] = "lower"
-                sample.measure_single(
-                    exposure_time=exposure_time, extra=extra_current, verbosity=verbosity, stitchback=True, **md
-                )
-
-            # pos2
-            SAXSy_o = SAXSy.user_readback.value
-            SAXSx_o = SAXSx.user_readback.value
-            WAXSy_o = WAXSy.user_readback.value
-            WAXSx_o = WAXSx.user_readback.value
-            # MAXSy_o = MAXSy.user_readback.value
-
-            for sample in self.getSamples():
-                sample.gotoOrigin()
-                time.sleep(0.2)
-
-                if pilatus2M in cms.detector:
-                    SAXSy.move(SAXSy_o + 5.16)
-                if pilatus800 in cms.detector:
-                    WAXSy.move(WAXSy_o + 5.16)
-                if pilatus300 in cms.detector:
-                    MAXSy.move(MAXSy_o + 5.16)
-
-                extra_current = "pos2" if extra is None else "{}_pos2".format(extra)
-                md["detector_position"] = "upper"
-                sample.measure_single(
-                    exposure_time=exposure_time, extra=extra_current, verbosity=verbosity, stitchback=True, **md
-                )
-
-            if SAXSy.user_readback.value != SAXSy_o:
-                SAXSy.move(SAXSy_o)
-            if WAXSy.user_readback.value != WAXSy_o:
-                WAXSy.move(WAXSy_o)
-            # if MAXSy.user_readback.value != MAXSy_o:
-            # MAXSy.move(MAXSy_o)
-
-        elif tiling == "xygaps":
-            # pos1
-            for sample in self.getSamples():
-                sample.gotoOrigin()
-                time.sleep(0.2)
-                extra_current = "pos1" if extra is None else "{}_pos1".format(extra)
-                md["detector_position"] = "lower_left"
-                sample.measure_single(
-                    exposure_time=exposure_time, extra=extra_current, verbosity=verbosity, stitchback=True, **md
-                )
-
-            # pos2
-            SAXSy_o = SAXSy.user_readback.value
-            SAXSx_o = SAXSx.user_readback.value
-            WAXSy_o = WAXSy.user_readback.value
-            WAXSx_o = WAXSx.user_readback.value
-            # MAXSy_o = MAXSy.user_readback.value
-
-            for sample in self.getSamples():
-                sample.gotoOrigin()
-                time.sleep(0.2)
-                if pilatus2M in cms.detector:
-                    SAXSy.move(SAXSy_o + 5.16)
-                if pilatus800 in cms.detector:
-                    WAXSy.move(WAXSy_o + 5.16)
-                if pilatus300 in cms.detector:
-                    MAXSy.move(MAXSy_o + 5.16)
-
-                extra_current = "pos2" if extra is None else "{}_pos2".format(extra)
-                md["detector_position"] = "upper"
-                sample.measure_single(
-                    exposure_time=exposure_time, extra=extra_current, verbosity=verbosity, stitchback=True, **md
-                )
-
-            # pos4  #comment out to save time
-            for sample in self.getSamples():
-                sample.gotoOrigin()
-                time.sleep(0.2)
-
-                if pilatus2M in cms.detector:
-                    SAXSx.move(SAXSx_o + 5.16)
-                    SAXSy.move(SAXSy_o + 5.16)
-                if pilatus800 in cms.detector:
-                    WAXSx.move(WAXSx_o - 5.16)
-                    WAXSy.move(WAXSy_o + 5.16)
-                extra_current = "pos4" if extra is None else "{}_pos4".format(extra)
-                md["detector_position"] = "upper_right"
-                sample.measure_single(
-                    exposure_time=exposure_time, extra=extra_current, verbosity=verbosity, stitchback=True, **md
-                )
-
-            # pos3
-            for sample in self.getSamples():
-                sample.gotoOrigin()
-                time.sleep(0.2)
-
-                if pilatus2M in cms.detector:
-                    SAXSx.move(SAXSx_o + 5.16)
-                    SAXSy.move(SAXSy_o)
-                if pilatus800 in cms.detector:
-                    WAXSx.move(WAXSx_o - 5.16)
-                    WAXSy.move(WAXSy_o)
-
-                extra_current = "pos3" if extra is None else "{}_pos3".format(extra)
-                md["detector_position"] = "lower_right"
-                sample.measure_single(
-                    exposure_time=exposure_time, extra=extra_current, verbosity=verbosity, stitchback=True, **md
-                )
-
-            if WAXSx.user_readback.value != WAXSx_o:
-                WAXSx.move(WAXSx_o)
-            if WAXSy.user_readback.value != WAXSy_o:
-                WAXSy.move(WAXSy_o)
-
-            if SAXSx.user_readback.value != SAXSx_o:
-                SAXSx.move(SAXSx_o)
-            if SAXSy.user_readback.value != SAXSy_o:
-                SAXSy.move(SAXSy_o)
+    @with_tiling()
+    def measure_Stitch(self, exposure_time=None, extra=None, **md):
+        """Measure all samples in holder (with optional tiling via @with_tiling decorator).
+        
+        Call with tiling=None (default) for single measurement, or tiling='ygaps'/'xygaps'
+        for tiled measurements. Detector movement and tiling metadata are handled by decorator.
+        
+        Usage:
+            holder.measure_Stitch(exposure_time=1.0)  # single measurement
+            holder.measure_Stitch(exposure_time=1.0, tiling='ygaps')  # tiled measurement
+        """
+        for sample in self.getSamples():
+            sample.gotoOrigin()
+            time.sleep(0.2)
+            sample.measure_single(
+                exposure_time=exposure_time, extra=extra, **md
+            )
 
     def measureSamples(self, range=None, step=0, angles=None, exposure_time=15, x_offset=0, verbosity=3, **md):
         """Measures all the samples.

@@ -31,6 +31,7 @@ import pandas as pds
 from datetime import datetime
 import functools
 import hashlib
+import inspect
 
 
 # ---------------------------------------------------------------------------
@@ -52,7 +53,7 @@ TILING_CONFIGS = {
 }
 
 
-def with_tiling(tiling_mode):
+def with_tiling(tiling_mode=None):
     """Decorator factory that wraps detector motion and injects stitching metadata.
 
     The decorator moves the detector to each tile position, calls the wrapped
@@ -94,34 +95,71 @@ def with_tiling(tiling_mode):
     The ``extra`` keyword argument is intercepted and a tile-label suffix is
     appended automatically (e.g. ``extra="film"`` becomes ``"film_pos1"``).
 
+    The effective tiling mode can be overridden at call time using
+    ``tiling=...``. If no override is provided, ``tiling_mode`` is used as
+    the default.
+
     Parameters
     ----------
-    tiling_mode : str
-        Key into ``TILING_CONFIGS`` (``'ygaps'`` or ``'xygaps'``).
+    tiling_mode : str or None
+        Default key into ``TILING_CONFIGS`` (``'ygaps'`` or ``'xygaps'``), or
+        ``None`` for no tiling unless overridden when calling the wrapped
+        function.
     """
-    if tiling_mode not in TILING_CONFIGS:
+    if tiling_mode is not None and tiling_mode not in TILING_CONFIGS:
         raise ValueError(
             "Unknown tiling_mode {!r}. Valid modes: {}".format(
                 tiling_mode, list(TILING_CONFIGS)
             )
         )
-    tiles = TILING_CONFIGS[tiling_mode]
-    tile_total = len(tiles)
 
     def decorator(func):
+        sig = inspect.signature(func)
+        accepts_varkw = any(
+            p.kind == inspect.Parameter.VAR_KEYWORD for p in sig.parameters.values()
+        )
+
+        def _call_func(args, kwargs):
+            # Accept only recognized keyword arguments unless the wrapped
+            # function defines **kwargs.
+            if accepts_varkw:
+                return func(*args, **kwargs)
+            filtered_kwargs = {k: v for k, v in kwargs.items() if k in sig.parameters}
+            return func(*args, **filtered_kwargs)
+
         @functools.wraps(func)
-        def wrapper(*args, extra=None, **md):
+        def wrapper(*args, **kwargs):
+            has_runtime_tiling = "tiling" in kwargs
+            runtime_tiling = kwargs.pop("tiling", None)
+            effective_tiling = runtime_tiling if has_runtime_tiling else tiling_mode
+
+            if effective_tiling is None:
+                return _call_func(args, kwargs)
+
+            if effective_tiling not in TILING_CONFIGS:
+                raise ValueError(
+                    "Unknown tiling_mode {!r}. Valid modes: {}".format(
+                        effective_tiling, list(TILING_CONFIGS)
+                    )
+                )
+
+            tiles = TILING_CONFIGS[effective_tiling]
+            tile_total = len(tiles)
+
+            base_kwargs = dict(kwargs)
+            base_extra = base_kwargs.get("extra", None)
+
             # --- shared stitching group id (generated once per tiling call) ---
-            if "stitch_group_id" not in md:
+            if "stitch_group_id" not in base_kwargs:
                 scan_id = RE.md.get("scan_id", 0)
                 name = getattr(args[0], "name", "block") if args else "block"
-                md["stitch_group_id"] = "{}_{}_{}".format(
+                base_kwargs["stitch_group_id"] = "{}_{}_{}".format(
                     name,
                     int(scan_id),
                     datetime.now().strftime("%Y%m%dT%H%M%S"),
                 )
-            md["stitch_tiling_mode"] = tiling_mode
-            RE.md["tiling"] = tiling_mode
+            base_kwargs["stitch_tiling_mode"] = effective_tiling
+            RE.md["tiling"] = effective_tiling
 
             # --- save current detector positions ---
             SAXSy_o = SAXSy.user_readback.value
@@ -140,20 +178,21 @@ def with_tiling(tiling_mode):
                         WAXSx.move(WAXSx_o + tile["WAXSx"])
 
                     # build per-tile metadata (copy so each tile is independent)
-                    tile_md = dict(md)
-                    tile_md["detector_position"] = tile["detector_position"]
-                    tile_md["stitch_tile_label"] = tile["label"]
-                    tile_md["stitch_tile_index"] = i + 1
-                    tile_md["stitch_tile_total"] = tile_total
-                    tile_md["stitchback"] = True
+                    tile_kwargs = dict(base_kwargs)
+                    tile_kwargs["detector_position"] = tile["detector_position"]
+                    tile_kwargs["stitch_tile_label"] = tile["label"]
+                    tile_kwargs["stitch_tile_index"] = i + 1
+                    tile_kwargs["stitch_tile_total"] = tile_total
+                    tile_kwargs["stitchback"] = True
 
                     # append tile label to the extra filename suffix
                     tile_extra = (
-                        tile["label"] if extra is None
-                        else "{}_{}".format(extra, tile["label"])
+                        tile["label"] if base_extra is None
+                        else "{}_{}".format(base_extra, tile["label"])
                     )
+                    tile_kwargs["extra"] = tile_extra
 
-                    func(*args, extra=tile_extra, **tile_md)
+                    _call_func(args, tile_kwargs)
 
             finally:
                 # restore detector positions unconditionally
