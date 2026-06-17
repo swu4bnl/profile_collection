@@ -3023,6 +3023,17 @@ class Sample_Generic(CoordinateSystem):
               'xygaps' : 4-tile coverage (pos1, pos2, pos3, pos4)
               'ygaps' : 2-tile coverage (pos1, pos2)
         """
+        
+        """
+        # This is exactly equivalent to writing:
+        ```python
+        @with_tiling("ygaps")          # applied at class definition, mode is fixed
+        def measure_single(self, ...):
+            ...
+
+        ```
+        """
+        
         if tiling in TILING_CONFIGS:
             with_tiling(tiling)(type(self).measure_single)(
                 self,

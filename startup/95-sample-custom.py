@@ -126,12 +126,14 @@ class SampleGISAXS_Generic(Sample_Generic):
             **md,
         )
 
+    
     def measureIncidentAngle(self, angle, exposure_time=None, extra=None, tiling=None, **md):
         self.thabs(angle)
         while sth.moving == True:
             time.sleep(0.1)
         self.measure(exposure_time=exposure_time, extra=extra, tiling=tiling, **md)
 
+    # @with_tiling('ygaps')
     def measureIncidentAngles(self, angles=None, exposure_time=None, extra=None, tiling=None, **md):
         # measure the incident angles first and then change the tiling features.
         if angles is None:
