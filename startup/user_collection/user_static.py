@@ -1365,18 +1365,18 @@ if True:
 
     que = Queue(base=stg)
 
-    que.addHolderIntoQueue(hol1, [1, 1], 10)   
-    que.addHolderIntoQueue(hol2, [1, 2], 11)   
-    que.addHolderIntoQueue(hol3, [1, 3], 12) 
-    que.addHolderIntoQueue(hol4, [2, 1],1)
-    que.addHolderIntoQueue(hol5, [2, 2], 2)   
-    que.addHolderIntoQueue(hol6, [2, 3], 3)   
-    que.addHolderIntoQueue(hol7, [3, 1], 4)   
-    que.addHolderIntoQueue(hol8, [3, 2], 5)   
-    que.addHolderIntoQueue(hol9, [3, 3], 6)  
-    que.addHolderIntoQueue(hol10, [4, 1], 7)  
-    que.addHolderIntoQueue(hol11, [4, 2], 8)  
-    que.addHolderIntoQueue(hol12, [4, 3], 9)  
+    que.addHolderIntoQueue(hol1, [1, 1], 1)   
+    que.addHolderIntoQueue(hol2, [1, 2], 2)   
+    que.addHolderIntoQueue(hol3, [1, 3], 3) 
+    que.addHolderIntoQueue(hol4, [2, 1],4)
+    que.addHolderIntoQueue(hol5, [2, 2], 5)   
+    que.addHolderIntoQueue(hol6, [2, 3], 6)   
+    que.addHolderIntoQueue(hol7, [3, 1], 7)   
+    que.addHolderIntoQueue(hol8, [3, 2], 8)   
+    que.addHolderIntoQueue(hol9, [3, 3], 9)  
+    que.addHolderIntoQueue(hol10, [4, 1], 10)  
+    que.addHolderIntoQueue(hol11, [4, 2], 11)  
+    que.addHolderIntoQueue(hol12, [4, 3], 12)  
 
      
 

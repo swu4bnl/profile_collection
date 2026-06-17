@@ -3064,6 +3064,7 @@ class Sample_Generic(CoordinateSystem):
         verbosity=3,
         stitchback=False,
         poling_period=0.2,
+        datasecurity=True, 
         **md,
     ):
         """Measure data when swing the rock_motor.
@@ -3178,6 +3179,9 @@ class Sample_Generic(CoordinateSystem):
         for detector in get_beamline().detector:
             self.handle_file(detector, extra=extra, verbosity=verbosity, **md_current)
             # self.handle_file(detector, extra=extra, verbosity=verbosity)
+            if datasecurity:
+                self.handle_file_datasecurity(detector, extra=extra, verbosity=verbosity, **md)
+
         self.md["measurement_ID"] += 1
 
     def measure_single(self, exposure_time=None, extra=None, measure_type="measure", verbosity=3, **md):
@@ -3263,7 +3267,11 @@ class Sample_Generic(CoordinateSystem):
             # elif detector.name is 'PhotonicSciences_CMS':
             # detector.setExposureTime(exposure_time, verbosity=verbosity)
 
-
+    # Caution: This function is still under development, please use with caution.
+    # Issues to be resolved: 
+    #   1) the number of frames is not properly set for some detectors, which causes the acquisition to fail.
+    #   2) the file handling after acquisition is not properly done, which causes the data to be lost. 
+    #   3) the metadata is not properly updated, which causes the data to be hard to be linked to the measurement conditions.
     def runPotentiostats_Ext(self, num_frames, exposure_time=0.995, exposure_period=1, detectors=None, trigger_mode='ExtTrigger', extra=None, wait_time=None, verbosity=3, **md):
         """
         Continueous shots with internal trigger of detectors .
@@ -3911,7 +3919,7 @@ class Sample_Generic(CoordinateSystem):
         extra=None,
         per_step=None,
         wait_time=None,
-        measure_type="Series_measure",
+        measure_type="series_measure",
         verbosity=3,
         fill_gaps=False,
         **md,
