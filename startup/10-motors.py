@@ -11,8 +11,8 @@ from datetime import datetime
 # class Slits(Device):
 #    top = Cpt(EpicsMotor, '-Ax:T}Mtr')
 #    bottom = Cpt(EpicsMotor, '-Ax:B}Mtr')
-beamline_stage = "default"  #for AB, please also change Smpl2-Y from 3... to -5 
-# beamline_stage = 'open_MAXS'
+# beamline_stage = "default"  #for AB, please also change Smpl2-Y from 3... to -5 
+beamline_stage = 'open_MAXS'
 # beamline_stage = 'BigHuber'
 
 print('Beamline_stage = {}'.format(beamline_stage))
@@ -243,6 +243,14 @@ class Filter(Device):
     sts = Cpt(EpicsSignal, "Pos-Sts")
     in_cmd = Cpt(EpicsSignal, "In-Cmd")
     out_cmd = Cpt(EpicsSignal, "Out-Cmd")
+
+
+class EllipMirDevice(Device):
+    "New 1D focusing elliptical mirror stages on MDrive controller."
+    pitch = Cpt(EpicsMotor, ":1}Mtr")
+    z = Cpt(EpicsMotor, ":2}Mtr")
+    x = Cpt(EpicsMotor, ":3}Mtr")
+    y = Cpt(EpicsMotor, "XF:11BMB-ES{Chm:Smpl3-Ax:Y}Mtr", add_prefix=())
 
 
 # class MotorSlits(Blades, MotorCenterAndGap):
@@ -480,11 +488,26 @@ TABLEd = EpicsMotor("XF:11BMB-ES{Tbl:End-Ax:Z}Mtr", name="TABLEd")
 
 
 # Stages for 1D Focusing Mirror --- Mdrive-01 -- 04/06/2026
+EllipMir = EllipMirDevice("XF:11BM1-OP{MDrive", name="EllipMir")
 
-EllipMir_pitch = EpicsMotor("XF:11BM1-OP{MDrive:1}Mtr", name="EllipMirPitch") 
-EllipMir_z = EpicsMotor("XF:11BM1-OP{MDrive:2}Mtr", name="EllipMirZ")
-EllipMir_x = EpicsMotor("XF:11BM1-OP{MDrive:3}Mtr", name="EllipMirX")
+# Backward-compatible aliases.
+EllipMir_pitch = EllipMir.pitch
+EllipMir_z = EllipMir.z
+EllipMir_x = EllipMir.x
+EllipMir_y = EllipMir.y
 
+# Add a helper function to print the current positions of the elliptical mirror motors.
+def wEllipMir():
+    '''
+    Print the current positions of the elliptical mirror motors in a readable format.
+     - Pitch in degrees with 4 decimal places
+     - X, Y, Z in millimeters with 2 decimal places     
+    '''
+    print('====================================')
+    print(f"EllipMir_pitch = {EllipMir_pitch.position:.4f} deg")
+    print(f"EllipMir_x = {EllipMir_x.position:.2f} mm")
+    print(f"EllipMir_y = {EllipMir_y.position:.2f} mm")
+    print(f"EllipMir_z = {EllipMir_z.position:.2f} mm")
 
 # For MDrive (X, Y, edited by YZ, 20230920)
 #mdx = EpicsMotor("XF:11BM-ES{Mdrive-Ax:X}Mtr", name="mdx")

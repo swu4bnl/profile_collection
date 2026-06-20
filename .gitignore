@@ -153,3 +153,6 @@ users/
 # pixi environments
 .pixi/*
 !.pixi/config.toml
+
+# AI stuff
+.skill/*
