@@ -5,6 +5,7 @@ print(f'Loading {__file__}')
 
 import glob
 from bluesky.callbacks import CallbackBase
+import tkinter as tk
 
 
 class SavingCallback(CallbackBase):
@@ -51,6 +52,69 @@ class PrintCallback(CallbackBase):
         print("Stop document: ")
         print(doc)
         print("END")
+
+
+class InteractivePlotMixin:
+    """Interactive callbacks shared by live plot classes."""
+
+    def __init__(self, *args, motor=None, **kwargs):
+        self.motor_for_positioning = motor
+        self._interactive_menu = None
+        self._interactive_target_x = None
+        self._interactive_cid = None
+        super().__init__(*args, **kwargs)
+
+    def setup_right_click_handler(self):
+        if self._interactive_cid is None and hasattr(self, "ax") and hasattr(self.ax, "figure"):
+            self._interactive_cid = self.ax.figure.canvas.mpl_connect(
+                "button_press_event", self._on_right_click
+            )
+
+    def _on_right_click(self, event):
+        if (
+            event.button != 3
+            or event.inaxes != self.ax
+            or self.motor_for_positioning is None
+            or event.xdata is None
+        ):
+            return
+
+        canvas = event.canvas
+        if not hasattr(canvas, "get_tk_widget"):
+            return
+
+        widget = canvas.get_tk_widget()
+        self._interactive_target_x = float(event.xdata)
+
+        if self._interactive_menu is not None:
+            try:
+                self._interactive_menu.destroy()
+            except Exception:
+                pass
+
+        self._interactive_menu = tk.Menu(widget, tearoff=0)
+        self._interactive_menu.add_command(label="Go to position", command=self._move_to_position)
+
+        gui_event = getattr(event, "guiEvent", None)
+        if gui_event is not None and hasattr(gui_event, "x_root") and hasattr(gui_event, "y_root"):
+            x_root = gui_event.x_root
+            y_root = gui_event.y_root
+        else:
+            x_root = widget.winfo_rootx() + int(event.x)
+            y_root = widget.winfo_rooty() + int(event.y)
+
+        try:
+            self._interactive_menu.tk_popup(x_root, y_root)
+        finally:
+            self._interactive_menu.grab_release()
+
+    def _move_to_position(self):
+        if self._interactive_target_x is None or self.motor_for_positioning is None:
+            return
+
+        position = float(self._interactive_target_x)
+        print(f"Moving {self.motor_for_positioning.name} to {position}")
+        self.motor_for_positioning.move(position)
 
 
 def remove_last_Pilatus_series():
@@ -292,7 +356,7 @@ class LiveStat(CallbackBase):
         self.result.values["y0"] = y0
 
 
-class LiveStatPlot(LivePlot):
+class LiveStatPlot(InteractivePlotMixin, LivePlot):
     def __init__(
         self,
         livestat,
@@ -302,6 +366,7 @@ class LiveStatPlot(LivePlot):
         xlim=None,
         ylim=None,
         ax=None,
+        motor=None,
         **kwargs,
     ):
         kwargs_update = {
@@ -319,6 +384,7 @@ class LiveStatPlot(LivePlot):
             xlim=xlim,
             ylim=xlim,
             ax=ax,
+            motor=motor,
             **kwargs_update,
         )
 
@@ -355,6 +421,7 @@ class LiveStatPlot(LivePlot):
             (x_start + x_stop) * 0.5, color="b", alpha=0.5, dashes=[5, 5], linewidth=2.0
         )
         self.x0_line.custom_tag_x0 = True
+        self.setup_right_click_handler()
 
     def event(self, doc):
         self.livestat.event(doc)
@@ -391,7 +458,7 @@ class LiveStatPlot(LivePlot):
         # Intentionally override LivePlot.stop. Do not call super().
 
 
-class LivePlot_Custom(LivePlot):
+class LivePlot_Custom(InteractivePlotMixin, LivePlot):
     def __init__(
         self,
         y,
@@ -402,6 +469,7 @@ class LivePlot_Custom(LivePlot):
         ylim=None,
         ax=None,
         fig=None,
+        motor=None,
         **kwargs,
     ):
         kwargs_update = {
@@ -432,6 +500,7 @@ class LivePlot_Custom(LivePlot):
             ylim=ylim,
             ax=ax,
             fig=fig,
+            motor=motor,
             **kwargs_update,
         )
         # super().setup()
@@ -456,6 +525,7 @@ class LivePlot_Custom(LivePlot):
 
         super().start(doc)
         self.ax.figure.canvas.mpl_connect("scroll_event", self.scroll_event)
+        self.setup_right_click_handler()
 
     def update_plot(self):
         ymin = min(self.y_data)
@@ -507,7 +577,7 @@ class LivePlot_Custom(LivePlot):
         self.legend = self.ax.legend(loc=0, title=self.legend_title)  # .draggable()
 
 
-class LiveFitPlot_Custom(LiveFitPlot):
+class LiveFitPlot_Custom(InteractivePlotMixin, LiveFitPlot):
     """
     Add a plot to an instance of LiveFit.
 
@@ -540,6 +610,7 @@ class LiveFitPlot_Custom(LiveFitPlot):
         ylim=None,
         ax=None,
         scan_range=None,
+        motor=None,
         **kwargs,
     ):
         kwargs_update = {
@@ -554,6 +625,7 @@ class LiveFitPlot_Custom(LiveFitPlot):
             xlim=xlim,
             ylim=ylim,
             ax=ax,
+            motor=motor,
             **kwargs_update,
         )
 
@@ -609,6 +681,7 @@ class LiveFitPlot_Custom(LiveFitPlot):
             (x_start + x_stop) * 0.5, color="b", alpha=0.5, dashes=[5, 5], linewidth=2.0
         )
         self.x0_line.custom_tag_x0 = True
+        self.setup_right_click_handler()
 
     def update_plot(self):
         x0 = self.livefit.result.values["x0"]
@@ -985,7 +1058,7 @@ def fit_scan(
         livetable = LiveTable([motor] + list(detectors))
         # subs.append(livetable)
         # liveplot = LivePlot_Custom(plot_y, motor.name, ax=ax)
-        liveplot = LivePlot(plot_y, motor.name, ax=ax)
+        liveplot = LivePlot_Custom(plot_y, motor.name, ax=ax, motor=motor)
         subs.append(liveplot)
 
     if wait_time is not None:
@@ -994,7 +1067,7 @@ def fit_scan(
     if fit in ["max", "min", "COM", "HM", "HMi"] or type(fit) is list:
         livefit = LiveStat(fit, plot_y, motor.name)
 
-        livefitplot = LiveStatPlot(livefit, ax=ax, scan_range=[start, stop])
+        livefitplot = LiveStatPlot(livefit, ax=ax, scan_range=[start, stop], motor=motor)
 
         subs.append(livefitplot)
 
@@ -1011,7 +1084,7 @@ def fit_scan(
         )
 
         # livefitplot = LiveFitPlot(livefit, color='k')
-        livefitplot = LiveFitPlot_Custom(livefit, ax=ax, scan_range=[start, stop])
+        livefitplot = LiveFitPlot_Custom(livefit, ax=ax, scan_range=[start, stop], motor=motor)
 
         subs.append(livefitplot)
 
