@@ -55,7 +55,14 @@ class PrintCallback(CallbackBase):
 
 
 class InteractivePlotMixin:
-    """Interactive callbacks shared by live plot classes."""
+    """Interactive callbacks shared by live plot classes.
+    Usage Example: class LivePlot_Custom(InteractivePlotMixin, LivePlot):
+
+    Functionality includes:
+        - Right-clicking on the plot to get a menu that allows you to move the motor to the x-position of the click. (Requires that the callback be initialized with a motor, and that the plot have an associated axis.)   
+
+    """
+
 
     def __init__(self, *args, motor=None, **kwargs):
         self.motor_for_positioning = motor
