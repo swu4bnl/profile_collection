@@ -41,14 +41,14 @@ import inspect
 # ---------------------------------------------------------------------------
 TILING_CONFIGS = {
     "ygaps": [
-        {"label": "pos1", "detector_position": "lower",       "SAXSy": 0.0,  "SAXSx": 0.0,  "WAXSy": 0.0,  "WAXSx": 0.0},
-        {"label": "pos2", "detector_position": "upper",       "SAXSy": 5.16, "SAXSx": 0.0,  "WAXSy": 5.16, "WAXSx": 0.0},
+        {"label": "pos1", "detector_position": "lower",       "SAXSy": 0.0,  "SAXSx": 0.0,  "WAXSy": 0.0,  "WAXSx": 0.0, "MAXSy": 0.0, "MAXSx": 0.0},
+        {"label": "pos2", "detector_position": "upper",       "SAXSy": 5.16, "SAXSx": 0.0,  "WAXSy": 5.16, "WAXSx": 0.0, "MAXSy": 5.16, "MAXSx": 0.0},
     ],
     "xygaps": [
-        {"label": "pos1", "detector_position": "lower_left",  "SAXSy": 0.0,  "SAXSx": 0.0,  "WAXSy": 0.0,  "WAXSx": 0.0},
-        {"label": "pos2", "detector_position": "upper_left",  "SAXSy": 5.16, "SAXSx": 0.0,  "WAXSy": 5.16, "WAXSx": 0.0},
-        {"label": "pos4", "detector_position": "upper_right", "SAXSy": 5.16, "SAXSx": 5.16, "WAXSy": 5.16, "WAXSx": -5.16},
-        {"label": "pos3", "detector_position": "lower_right", "SAXSy": 0.0,  "SAXSx": 5.16, "WAXSy": 0.0,  "WAXSx": -5.16},
+        {"label": "pos1", "detector_position": "lower_left",  "SAXSy": 0.0,  "SAXSx": 0.0,  "WAXSy": 0.0,  "WAXSx": 0.0, "MAXSy": 0.0, "MAXSx": 0.0},
+        {"label": "pos2", "detector_position": "upper_left",  "SAXSy": 5.16, "SAXSx": 0.0,  "WAXSy": 5.16, "WAXSx": 0.0, "MAXSy": 5.16, "MAXSx": 0.0},
+        {"label": "pos4", "detector_position": "upper_right", "SAXSy": 5.16, "SAXSx": 5.16, "WAXSy": 5.16, "WAXSx": 5.16, "MAXSy": 5.16, "MAXSx": 5.16},
+        {"label": "pos3", "detector_position": "lower_right", "SAXSy": 0.0,  "SAXSx": 5.16, "WAXSy": 0.0,  "WAXSx": 5.16, "MAXSy": 0.0, "MAXSx": 5.16},
     ],
 }
 
@@ -166,6 +166,8 @@ def with_tiling(tiling_mode=None):
             SAXSx_o = SAXSx.user_readback.value
             WAXSy_o = WAXSy.user_readback.value
             WAXSx_o = WAXSx.user_readback.value
+            MAXSy_o = MAXSy.user_readback.value
+            MAXSx_o = MAXSx.user_readback.value
 
             try:
                 for i, tile in enumerate(tiles):
@@ -176,6 +178,10 @@ def with_tiling(tiling_mode=None):
                     if pilatus800 in cms.detector:
                         WAXSy.move(WAXSy_o + tile["WAXSy"])
                         WAXSx.move(WAXSx_o + tile["WAXSx"])
+                    if pilatus8002 in cms.detector:
+                        MAXSy.move(MAXSy_o + tile["MAXSy"])
+                    if pilatus8002 in cms.detector:
+                        MAXSx.move(MAXSx_o + tile["MAXSx"])
 
                     # build per-tile metadata (copy so each tile is independent)
                     tile_kwargs = dict(base_kwargs)
@@ -202,6 +208,9 @@ def with_tiling(tiling_mode=None):
                 if pilatus800 in cms.detector:
                     WAXSy.move(WAXSy_o)
                     WAXSx.move(WAXSx_o)
+                if pilatus8002 in cms.detector:
+                    MAXSy.move(MAXSy_o)
+                    MAXSx.move(MAXSx_o)
 
         return wrapper
     return decorator
