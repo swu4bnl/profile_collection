@@ -2138,11 +2138,12 @@ class CapillaryHolder(PositionalHolder):
             holder.measure_Stitch(exposure_time=1.0)  # single measurement
             holder.measure_Stitch(exposure_time=1.0, tiling='ygaps')  # tiled measurement
         """
+        verbosity = md.pop("verbosity", 3)
         for sample in self.getSamples():
             sample.gotoOrigin()
             time.sleep(0.2)
             sample.measure_single(
-                exposure_time=exposure_time, extra=extra, **md
+                exposure_time=exposure_time, extra=extra, verbosity=verbosity, **md
             )
 
     def measureSamples(self, range=None, step=0, angles=None, exposure_time=15, x_offset=0, verbosity=3, **md):
