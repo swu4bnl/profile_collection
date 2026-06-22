@@ -24,7 +24,7 @@ from pathlib import Path
 from ophyd import EpicsSignal
 from bluesky.suspenders import SuspendFloor, SuspendCeil
 
-if True:
+if False:
     ring_current = EpicsSignal('SR:OPS-BI{DCCT:1}I:Real-I')
     sus = SuspendFloor(ring_current, 100, resume_thresh=300, sleep=600)
     RE.install_suspender(sus)
@@ -50,8 +50,8 @@ if True:
 
 
 
-RE.md['experiment_alias_directory'] = '0_Static'
-RE.md["userpy_alias_directory"] = '/nsls2/data/cms/shared/config/bluesky/profile_collection/users/2025-3/UserName/'
+RE.md['experiment_alias_directory'] = 'SWu/99_test'
+RE.md["userpy_alias_directory"] = '/nsls2/data/cms/shared/config/bluesky/profile_collection/users/2026-2/SWu/99_test'
 
 # cms.SAXS.setCalibration([732, 1680-582], 3.8, [-65, -73]) #
 # cms.SAXS.setCalibration([759, 1680-606], 5, [-65, -73]) #2022Jul
@@ -1363,25 +1363,25 @@ if True:
     hol12.addSampleSlotPosition( Sample('VL_UKY7_mercaptoundecanol_5mg/mL_600rpm', **md),5, 73,'WAXS', incident_angles=[0.08,0.10,0.12,0.14, 0.16, 0.2, 0.25])
     hol12.addSampleSlotPosition( Sample('VL_UKY7_mercaptoundecanol_only', **md),6, 95,'WAXS', incident_angles=[0.08,0.10,0.12,0.14, 0.16, 0.2, 0.25])
 
-    que = Queue(base=stg)
+    # que = Queue(base=stg)
 
-    que.addHolderIntoQueue(hol1, [1, 1], 1)   
-    que.addHolderIntoQueue(hol2, [1, 2], 2)   
-    que.addHolderIntoQueue(hol3, [1, 3], 3) 
-    que.addHolderIntoQueue(hol4, [2, 1],4)
-    que.addHolderIntoQueue(hol5, [2, 2], 5)   
-    que.addHolderIntoQueue(hol6, [2, 3], 6)   
-    que.addHolderIntoQueue(hol7, [3, 1], 7)   
-    que.addHolderIntoQueue(hol8, [3, 2], 8)   
-    que.addHolderIntoQueue(hol9, [3, 3], 9)  
-    que.addHolderIntoQueue(hol10, [4, 1], 10)  
-    que.addHolderIntoQueue(hol11, [4, 2], 11)  
-    que.addHolderIntoQueue(hol12, [4, 3], 12)  
+    # que.addHolderIntoQueue(hol1, [1, 1], 1)   
+    # que.addHolderIntoQueue(hol2, [1, 2], 2)   
+    # que.addHolderIntoQueue(hol3, [1, 3], 3) 
+    # que.addHolderIntoQueue(hol4, [2, 1],4)
+    # que.addHolderIntoQueue(hol5, [2, 2], 5)   
+    # que.addHolderIntoQueue(hol6, [2, 3], 6)   
+    # que.addHolderIntoQueue(hol7, [3, 1], 7)   
+    # que.addHolderIntoQueue(hol8, [3, 2], 8)   
+    # que.addHolderIntoQueue(hol9, [3, 3], 9)  
+    # que.addHolderIntoQueue(hol10, [4, 1], 10)  
+    # que.addHolderIntoQueue(hol11, [4, 2], 11)  
+    # que.addHolderIntoQueue(hol12, [4, 3], 12)  
 
      
 
-    que.setSequence()  
-    que.checkStatus(verbosity=5) 
+    # que.setSequence()  
+    # que.checkStatus(verbosity=5) 
 
 
 # sam=Sample('test')

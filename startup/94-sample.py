@@ -31,6 +31,189 @@ import pandas as pds
 from datetime import datetime
 import functools
 import hashlib
+import inspect
+
+
+# ---------------------------------------------------------------------------
+# Tiling configuration
+# Each entry defines per-tile detector offsets (relative to the saved origin)
+# and the physical detector_position label used in metadata.
+# ---------------------------------------------------------------------------
+TILING_CONFIGS = {
+    "ygaps": [
+        {"label": "pos1", "detector_position": "lower",       "SAXSy": 0.0,  "SAXSx": 0.0,  "WAXSy": 0.0,  "WAXSx": 0.0, "MAXSy": 0.0, "MAXSx": 0.0},
+        {"label": "pos2", "detector_position": "upper",       "SAXSy": 5.16, "SAXSx": 0.0,  "WAXSy": 5.16, "WAXSx": 0.0, "MAXSy": 5.16, "MAXSx": 0.0},
+    ],
+    "xygaps": [
+        {"label": "pos1", "detector_position": "lower_left",  "SAXSy": 0.0,  "SAXSx": 0.0,  "WAXSy": 0.0,  "WAXSx": 0.0, "MAXSy": 0.0, "MAXSx": 0.0},
+        {"label": "pos2", "detector_position": "upper_left",  "SAXSy": 5.16, "SAXSx": 0.0,  "WAXSy": 5.16, "WAXSx": 0.0, "MAXSy": 5.16, "MAXSx": 0.0},
+        {"label": "pos4", "detector_position": "upper_right", "SAXSy": 5.16, "SAXSx": 5.16, "WAXSy": 5.16, "WAXSx": -5.16, "MAXSy": 5.16, "MAXSx": 5.16},
+        {"label": "pos3", "detector_position": "lower_right", "SAXSy": 0.0,  "SAXSx": 5.16, "WAXSy": 0.0,  "WAXSx": -5.16, "MAXSy": 0.0, "MAXSx": 5.16},
+    ],
+}
+
+
+def with_tiling(tiling_mode=None):
+    """Decorator factory that wraps detector motion and injects stitching metadata.
+
+    The decorator moves the detector to each tile position, calls the wrapped
+    function once per tile, then restores detector positions unconditionally via
+    try/finally.  Because the wrapped function is called once per tile position,
+    the same decorator works for both measurement patterns:
+
+    **Immediate paired** (one sample, one call):
+
+    .. code-block:: python
+
+        @with_tiling("ygaps")
+        def measure_one(sample, exposure_time=None, extra=None, **md):
+            sample.measure_single(exposure_time=exposure_time, extra=extra, **md)
+
+        measure_one(sample, exposure_time=0.5)
+        # -> measure_single called at pos1 (lower), then at pos2 (upper)
+
+    **Block measurement** (many samples, one call moves all at once):
+
+    .. code-block:: python
+
+        @with_tiling("ygaps")
+        def measure_series(samples, exposure_time=None, extra=None, **md):
+            for s in samples:
+                s.measure_single(exposure_time=exposure_time, extra=extra, **md)
+
+        measure_series(samples, exposure_time=0.5)
+        # -> all samples measured at pos1, then all measured at pos2
+
+    Per-tile metadata injected into ``**md``:
+        - ``detector_position`` : physical label (e.g. ``"lower"``, ``"upper_left"``)
+        - ``stitch_tile_label`` : position key (``"pos1"``, ``"pos2"``, ...)
+        - ``stitch_tile_index`` : 1-based tile index
+        - ``stitch_tile_total`` : total number of tiles
+        - ``stitch_group_id``   : unique ID shared by all tiles in one tiling call
+        - ``stitch_tiling_mode``: the tiling mode string
+
+    The ``extra`` keyword argument is intercepted and a tile-label suffix is
+    appended automatically (e.g. ``extra="film"`` becomes ``"film_pos1"``).
+
+    The effective tiling mode can be overridden at call time using
+    ``tiling=...``. If no override is provided, ``tiling_mode`` is used as
+    the default.
+
+    Parameters
+    ----------
+    tiling_mode : str or None
+        Default key into ``TILING_CONFIGS`` (``'ygaps'`` or ``'xygaps'``), or
+        ``None`` for no tiling unless overridden when calling the wrapped
+        function.
+    """
+    if tiling_mode is not None and tiling_mode not in TILING_CONFIGS:
+        raise ValueError(
+            "Unknown tiling_mode {!r}. Valid modes: {}".format(
+                tiling_mode, list(TILING_CONFIGS)
+            )
+        )
+
+    def decorator(func):
+        sig = inspect.signature(func)
+        accepts_varkw = any(
+            p.kind == inspect.Parameter.VAR_KEYWORD for p in sig.parameters.values()
+        )
+
+        def _call_func(args, kwargs):
+            # Accept only recognized keyword arguments unless the wrapped
+            # function defines **kwargs.
+            if accepts_varkw:
+                return func(*args, **kwargs)
+            filtered_kwargs = {k: v for k, v in kwargs.items() if k in sig.parameters}
+            return func(*args, **filtered_kwargs)
+
+        @functools.wraps(func)
+        def wrapper(*args, **kwargs):
+            has_runtime_tiling = "tiling" in kwargs
+            runtime_tiling = kwargs.pop("tiling", None)
+            effective_tiling = runtime_tiling if has_runtime_tiling else tiling_mode
+
+            if effective_tiling is None:
+                return _call_func(args, kwargs)
+
+            if effective_tiling not in TILING_CONFIGS:
+                raise ValueError(
+                    "Unknown tiling_mode {!r}. Valid modes: {}".format(
+                        effective_tiling, list(TILING_CONFIGS)
+                    )
+                )
+
+            tiles = TILING_CONFIGS[effective_tiling]
+            tile_total = len(tiles)
+
+            base_kwargs = dict(kwargs)
+            base_extra = base_kwargs.get("extra", None)
+
+            # --- shared stitching group id (generated once per tiling call) ---
+            if "stitch_group_id" not in base_kwargs:
+                scan_id = RE.md.get("scan_id", 0)
+                name = getattr(args[0], "name", "block") if args else "block"
+                base_kwargs["stitch_group_id"] = "{}_{}_{}".format(
+                    name,
+                    int(scan_id),
+                    datetime.now().strftime("%Y%m%dT%H%M%S"),
+                )
+            base_kwargs["stitch_tiling_mode"] = effective_tiling
+            RE.md["tiling"] = effective_tiling
+
+            # --- save current detector positions ---
+            SAXSy_o = SAXSy.user_readback.value
+            SAXSx_o = SAXSx.user_readback.value
+            WAXSy_o = WAXSy.user_readback.value
+            WAXSx_o = WAXSx.user_readback.value
+            MAXSy_o = MAXSy.user_readback.value
+            MAXSx_o = MAXSx.user_readback.value
+
+            try:
+                for i, tile in enumerate(tiles):
+                    # move detectors to tile offset from saved origin
+                    if pilatus2M in cms.detector:
+                        SAXSy.move(SAXSy_o + tile["SAXSy"])
+                        SAXSx.move(SAXSx_o + tile["SAXSx"])
+                    if pilatus800 in cms.detector:
+                        WAXSy.move(WAXSy_o + tile["WAXSy"])
+                        WAXSx.move(WAXSx_o + tile["WAXSx"])
+                    if pilatus8002 in cms.detector:
+                        MAXSy.move(MAXSy_o + tile["MAXSy"])
+                    if pilatus8002 in cms.detector:
+                        MAXSx.move(MAXSx_o + tile["MAXSx"])
+
+                    # build per-tile metadata (copy so each tile is independent)
+                    tile_kwargs = dict(base_kwargs)
+                    tile_kwargs["detector_position"] = tile["detector_position"]
+                    tile_kwargs["stitch_tile_label"] = tile["label"]
+                    tile_kwargs["stitch_tile_index"] = i + 1
+                    tile_kwargs["stitch_tile_total"] = tile_total
+                    tile_kwargs["stitchback"] = True
+
+                    # append tile label to the extra filename suffix
+                    tile_extra = (
+                        tile["label"] if base_extra is None
+                        else "{}_{}".format(base_extra, tile["label"])
+                    )
+                    tile_kwargs["extra"] = tile_extra
+
+                    _call_func(args, tile_kwargs)
+
+            finally:
+                # restore detector positions unconditionally
+                if pilatus2M in cms.detector:
+                    SAXSy.move(SAXSy_o)
+                    SAXSx.move(SAXSx_o)
+                if pilatus800 in cms.detector:
+                    WAXSy.move(WAXSy_o)
+                    WAXSx.move(WAXSx_o)
+                if pilatus8002 in cms.detector:
+                    MAXSy.move(MAXSy_o)
+                    MAXSx.move(MAXSx_o)
+                RE.md.pop("tiling", None)
+        return wrapper
+    return decorator
 
 
 class CoordinateSystem(object):
@@ -2570,6 +2753,7 @@ class Sample_Generic(CoordinateSystem):
         )
         # remove_last_Pilatus_series()
 
+    # This method is not in use
     def _measure(
         self,
         exposure_time=None,
@@ -2846,133 +3030,41 @@ class Sample_Generic(CoordinateSystem):
         tiling : string
             Controls the detector tiling mode.
               None : regular measurement (single detector position)
-              'ygaps' : try to cover the vertical gaps in the Pilatus detector
+              'xygaps' : 4-tile coverage (pos1, pos2, pos3, pos4)
+              'ygaps' : 2-tile coverage (pos1, pos2)
         """
+        
+        """
+        # This is exactly equivalent to writing:
+        ```python
+        @with_tiling("ygaps")          # applied at class definition, mode is fixed
+        def measure_single(self, ...):
+            ...
 
-        if tiling == "xygaps":
-            SAXSy_o = SAXSy.user_readback.value
-            SAXSx_o = SAXSx.user_readback.value
-            WAXSy_o = WAXSy.user_readback.value
-            WAXSx_o = WAXSx.user_readback.value
-            # MAXSy_o = MAXSy.user_readback.value
-
-            RE.md["tiling"] = "xygaps"
-            self.pos1_scanID = RE.md["scan_id"]-1
-            RE.md["pos1_scanID"] = self.pos1_scanID
-
-            extra_current = "pos1" if extra is None else "{}_pos1".format(extra)
-            md["detector_position"] = "lower_left"
-            self.measure_single(
+        ```
+        """
+        
+        if tiling in TILING_CONFIGS:
+            with_tiling(tiling)(type(self).measure_single)(
+                self,
                 exposure_time=exposure_time,
-                extra=extra_current,
+                extra=extra,
                 measure_type=measure_type,
                 verbosity=verbosity,
-                stitchback=True,
                 **md,
             )
-
-            self.pos1_scanID = RE.md["scan_id"]-1
-            self.pos1_scanID = RE.md["scan_id"]-1
-
-            # pos2
-            if [pilatus2M] in cms.detector:
-                SAXSy.move(SAXSy_o + 5.16)
-            if [pilatus800] in cms.detector:
-                WAXSy.move(WAXSy_o + 5.16)
-            # if [pilatus300] in cms.detector:
-            # MAXSy.move(MAXSy_o + 5.16)
-
-            extra_current = "pos2" if extra is None else "{}_pos2".format(extra)
-            md["detector_position"] = "upper_left"
-            self.measure_single(
-                exposure_time=exposure_time, extra=extra_current, verbosity=verbosity, stitchback=True, **md
-            )
-
-            # pos4
-            if pilatus2M in cms.detector:
-                SAXSx.move(SAXSx_o + 5.16)
-                SAXSy.move(SAXSy.o + 5.16)
-            if pilatus800 in cms.detector:
-                WAXSx.move(WAXSx_o - 5.16)
-                WAXSy.move(WAXSy_o + 5.16)
-            extra_current = "pos4" if extra is None else "{}_pos4".format(extra)
-            md["detector_position"] = "upper_right"
-            self.measure_single(
-                exposure_time=exposure_time, extra=extra_current, verbosity=verbosity, stitchback=True, **md
-            )
-
-            # pos3
-            if pilatus2M in cms.detector:
-                SAXSx.move(SAXSx_o + 5.16)
-                SAXSy.move(SAXSy_o)
-            if pilatus800 in cms.detector:
-                WAXSx.move(WAXSx_o - 5.16)
-                WAXSy.move(WAXSy_o)
-
-            extra_current = "pos3" if extra is None else "{}_pos3".format(extra)
-            md["detector_position"] = "lower_right"
-            self.measure_single(
-                exposure_time=exposure_time, extra=extra_current, verbosity=verbosity, stitchback=True, **md
-            )
-
-            if WAXSx.user_readback.value != WAXSx_o:
-                WAXSx.move(WAXSx_o)
-            if WAXSy.user_readback.value != WAXSy_o:
-                WAXSy.move(WAXSy_o)
-
-            if SAXSx.user_readback.value != SAXSx_o:
-                SAXSx.move(SAXSx_o)
-            if SAXSy.user_readback.value != SAXSy_o:
-                SAXSy.move(SAXSy_o)
-
-        elif tiling == "ygaps":
-            SAXSy_o = SAXSy.user_readback.value
-            SAXSx_o = SAXSx.user_readback.value
-            WAXSy_o = WAXSy.user_readback.value
-            WAXSx_o = WAXSx.user_readback.value
-            ##MAXSy_o = MAXSy.user_readback.value
-
-            extra_current = "pos1" if extra is None else "{}_pos1".format(extra)
-            md["detector_position"] = "lower"
-            self.measure_single(
-                exposure_time=exposure_time,
-                extra=extra_current,
-                measure_type=measure_type,
-                verbosity=verbosity,
-                stitchback=True,
-                **md,
-            )
-
-            if pilatus2M in cms.detector:
-                SAXSy.move(SAXSy_o + 5.16)
-            if pilatus800 in cms.detector:
-                WAXSy.move(WAXSy_o + 5.16)
-            # if pilatus300 in cms.detector:
-            # MAXSy.move(MAXSy_o + 5.16)
-
-            # extra x movement is needed for pilatus2M.
-            extra_current = "pos2" if extra is None else "{}_pos2".format(extra)
-            md["detector_position"] = "upper"
-            self.measure_single(
-                exposure_time=exposure_time,
-                extra=extra_current,
-                measure_type=measure_type,
-                verbosity=verbosity,
-                stitchback=True,
-                **md,
-            )
-
-            if SAXSy.user_readback.value != SAXSy_o:
-                SAXSy.move(SAXSy_o)
-            if WAXSy.user_readback.value != WAXSy_o:
-                WAXSy.move(WAXSy_o)
-            # if MAXSy.user_readback.value != MAXSy_o:
-            # MAXSy.move(MAXSy_o)
-
-        else:
+        elif tiling is None:
             # Just do a normal measurement
             self.measure_single(
-                exposure_time=exposure_time, extra=extra, measure_type=measure_type, verbosity=verbosity, **md
+                exposure_time=exposure_time,
+                extra=extra,
+                measure_type=measure_type,
+                verbosity=verbosity,
+                **md,
+            )
+        else:
+            raise ValueError(
+                f"Unknown tiling mode {tiling!r}. Valid options are: {list(TILING_CONFIGS.keys())}"
             )
 
     def measureRock(
@@ -3932,7 +4024,7 @@ class Sample_Generic(CoordinateSystem):
             print('Don\'t Ctrl +C !!')
             self.handle_fileseries(detector, num_frames=num_frames, extra=extra, verbosity=verbosity, **md)
 
-
+    # This method is not in use
     def _series_measure(
         self,
         num_frames,
