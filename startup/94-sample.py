@@ -3053,7 +3053,7 @@ class Sample_Generic(CoordinateSystem):
                 verbosity=verbosity,
                 **md,
             )
-        else:
+        elif tiling is None:
             # Just do a normal measurement
             self.measure_single(
                 exposure_time=exposure_time,
@@ -3061,6 +3061,10 @@ class Sample_Generic(CoordinateSystem):
                 measure_type=measure_type,
                 verbosity=verbosity,
                 **md,
+            )
+        else:
+            raise ValueError(
+                f"Unknown tiling mode {tiling!r}. Valid options are: {list(TILING_CONFIGS.keys())}"
             )
 
     def measureRock(
