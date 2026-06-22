@@ -211,7 +211,7 @@ def with_tiling(tiling_mode=None):
                 if pilatus8002 in cms.detector:
                     MAXSy.move(MAXSy_o)
                     MAXSx.move(MAXSx_o)
-
+                RE.md.pop("tiling", None)
         return wrapper
     return decorator
 
