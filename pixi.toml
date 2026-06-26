@@ -65,3 +65,6 @@ pvs = "ipython --profile-dir=. -c 'get_pv_types(); exit()'"
 [environments]
 terminal = {features=["profile", "terminal"], solve-group="profile"}
 qs = {features=["profile", "qs"], solve-group="profile"}
+
+[dependencies]
+sympy = ">=1.14.0,<2"

@@ -161,5 +161,6 @@ users/
 
 # Configuration files
 .vscode/*
-/startup/.cms_config
+startup/.cms_config
+startup/cfg/*
 *.cfg
