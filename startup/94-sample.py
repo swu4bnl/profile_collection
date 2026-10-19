@@ -2312,7 +2312,9 @@ class Sample_Generic(CoordinateSystem):
             md["measure_type"] = "expose"
         # self.log('{} for {}.'.format(md['measure_type'], self.name), **md)
 
-
+        if exposure_time is not None and exposure_time<0:
+            return print('Exposure time must be POSITIVE.')
+            
         # Modularized exposure time setting
         for detector in get_beamline().detector:
             # RE(detector.setExposureTime(exposure_time, verbosity=verbosity))

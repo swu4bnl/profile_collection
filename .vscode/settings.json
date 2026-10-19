@@ -1,5 +1,5 @@
 {
-    "python-envs.defaultEnvManager": "ms-python.python:conda",
+    "python-envs.defaultEnvManager": "ms-python.python:system",
     "workbench.colorCustomizations": {
         "activityBar.activeBackground": "#416cad",
         "activityBar.background": "#416cad",
@@ -24,10 +24,13 @@
         "activityBarTop.inactiveForeground": "#e7e7e799",
         "commandCenter.foreground": "#e7e7e7",
         "statusBar.debuggingBackground": "#335588",
-        "statusBar.debuggingForeground": "#e7e7e7"
+        "statusBar.debuggingForeground": "#e7e7e7",
+        "activityBar.activeBorder": "#e7e7e7",
+        "activityBarTop.activeBorder": "#e7e7e7",
+        "statusBar.inactiveBackground": "#335588"
     },
     "peacock.color": "#335588",
-    "python-envs.defaultPackageManager": "ms-python.python:conda"
+    "python-envs.defaultPackageManager": "ms-python.python:pip"
 } // {
 //     "python-envs.defaultEnvManager": "ms-python.python:system",
 //     "python.analysis.languageServerMode": "light"
