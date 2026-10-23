@@ -78,6 +78,21 @@ BEAMLINE_MODE_CONFIGS = {
         "beam_defining_slit": "s4",
         "enable_s4d": True,
     },
+    ## swap schi and sth, 2026-10-20, HZ
+    "Temp2": { 
+        "sample_motors": {
+            "smx": "XF:11BMB-ES{Chm:Smpl-Ax:X}Mtr",
+            "smy": "XF:11BMB-ES{Chm:Smpl-Ax:Y}Mtr",
+            "schi": "XF:11BMB-ES{Chm:Smpl-Ax:theta}Mtr",
+            "sth": "XF:11BMB-ES{Chm:Smpl-Ax:chi}Mtr",
+        },
+        "pilatus800_on": False,
+        "pilatus800_2_on": False,
+        "pilatus300_on": True,
+        "beam_defining_slit": "s4",
+        "enable_s4d": True,
+    },
+
     # Test mode that enable all motors and detectors, use with caution!
     "Test": {
         "sample_motors": {

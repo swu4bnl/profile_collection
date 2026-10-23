@@ -107,4 +107,4 @@ tw = BufferingWrapper(tw)
 
 # Subscribe the TiledWriter
 RE.md["tiled_access_tags"] = (RE.md["data_session"],)
-RE.subscribe(tw)
+# RE.subscribe(tw)
