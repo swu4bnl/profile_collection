@@ -2168,7 +2168,7 @@ class CMS_Beamline(Beamline):
             self.beam.setTransmission(1e-8)
 
         # mov(bsx, -10.95)
-        bsx.move(self.bsx_pos+5)
+        bsx.move(self.bsx_pos+8)
         # bsx.move(self.bsx_pos + 3)
 
         # detselect(pilatus300, suffix='_stats4_total')
@@ -2204,7 +2204,7 @@ class CMS_Beamline(Beamline):
             self.beam.setTransmission(1e-8)
 
         # mov(bsx, -10.95)
-        yield from bps.mv(bsx, self.bsx_pos + 5)
+        yield from bps.mv(bsx, self.bsx_pos + 8)
         # bsx.move(self.bsx_pos+5)
 
         # detselect(pilatus300, suffix='_stats4_total')
@@ -3131,6 +3131,8 @@ class CMS_Beamline(Beamline):
             )
 
     def setMetadata(self, verbosity=3):
+        # This function will be DEPRECATED in the future.
+        print("Warning: setMetadata() is deprecated and will be removed in the future.")
         """Guides the user through setting some of the required and recommended
         meta-data fields."""
 
@@ -3372,7 +3374,7 @@ class CMS_Beamline_GISAXS(CMS_Beamline):
         # mov(bsx, -16.53+3) # 07/20/17, GISAXS, 5m, CRoss
         # mov(bsx, self.bsx_pos+3)
 
-        bsx.move(self.bsx_pos + 5)
+        bsx.move(self.bsx_pos + 8)
 
         self.setReflectedBeamROI()
         self.setDirectBeamROI()
@@ -3954,7 +3956,7 @@ class CMS_Beamline_XR(CMS_Beamline_GISAXS):
 
         self.setReflectedBeamROI()
         self.setDirectBeamROI()
-        bsx.move(self.bsx_pos + 5)
+        bsx.move(self.bsx_pos + 8)
         # detselect(pilatus300, suffix='_stats4_total')
         # caput('XF:11BMB-ES{Det:SAXS}:cam1:AcquireTime', 0.5)
         # caput('XF:11BMB-ES{Det:SAXS}:cam1:AcquirePeriod', 0.6)

@@ -3,11 +3,15 @@
 # 2025-08-19: Modified by Siyu Wu
 
 import asyncio
+import enum
 import pandas as pd
 import time
 import json
 from pathlib import Path
 from datetime import datetime
+from shutil import copyfile
+from ophyd import PositionerBase
+from ophyd.status import MoveStatus
 
 class LinkamThermal(Device):
     """
@@ -56,8 +60,9 @@ class LinkamThermal(Device):
     # Stage origin position logging functions
     # Add by Siyu Wu 2025-08-19
 
-    # Default step columns and PVs for thermal mode
-    step_columns = ['stepNo', 'temperature', 'rate', 'wait_time']
+    # Default (required) step columns and PVs for thermal mode. Units are in the column
+    # names, e.g. 'temperature(C)'.
+    step_columns = ['stepNo', 'temperature(C)', 'ramp_rate(C/min)', 'duration(s)']
     pv_list = [
         'XF:11BM-ES:{LINKAM}:TEMP',
         'XF:11BM-ES:{LINKAM}:RAMPRATE',
@@ -71,9 +76,9 @@ class LinkamThermal(Device):
         Initialize LinkamThermal device, step configuration, and position logging.
         """
         super().__init__(prefix, name=name, **kwargs)
-        self.folder = '/nsls2/data/cms/shared/config/bluesky/profile_collection/startup/cfg/'
-        self.config_file = Path(self.folder + 'linkam_stage_pos.cfg')
-        self.csv_path = Path(self.folder + f'{name}_step.csv')
+        self.folder = Path(bluesky_path('cfg'))
+        self.config_file = self.folder / 'linkam_stage_pos.cfg'
+        self._csv_path = self.folder / f'{name}_step.csv'
         self.step_columns = step_columns or self.step_columns
         self.pv_list = pv_list or self.pv_list
         self.step_config = pd.DataFrame(columns=self.step_columns)
@@ -221,18 +226,111 @@ class LinkamThermal(Device):
     # Linkam Stage Step Configuration Read/Load functions
     # Added by Siyu Wu 2025-08-19
 
-    def load_step_config(self) -> pd.DataFrame:
+    @property
+    def csv_path(self) -> Path:
+        """Current step-configuration CSV path."""
+        return self._csv_path
+
+    @csv_path.setter
+    def csv_path(self, path) -> None:
+        path = Path(path)
+        if path.suffix != '.csv':
+            path = path.with_suffix('.csv')
+        if not path.is_absolute():
+            try:
+                path = Path(RE.md['userpy_alias_directory']) / path
+            except KeyError as error:
+                raise RuntimeError("RE.md['userpy_alias_directory'] must be set before "
+                                   "loading a user Linkam step profile.") from error
+        self._csv_path = path
+
+    def load_step_config(self, profile=None) -> pd.DataFrame:
         """
-        Load step configuration from CSV.
-        Uses self.step_columns for required columns.
+        Load a user step-configuration profile or explicit CSV path.
+        Uses self.step_columns for required columns; lines starting with '#' are
+        treated as comments and skipped. Missing user profiles are initialized
+        from a same-named template in the shared cfg directory. The selected
+        path becomes csv_path, so subsequent editing saves to that user file.
         Returns: pandas DataFrame
         """
-        df = pd.read_csv(self.csv_path)
+        if profile is not None:
+            self.csv_path = profile
+        elif self.csv_path.parent == self.folder:
+            self.csv_path = self.csv_path.name
+
+        if not self.csv_path.exists():
+            template_path = self.folder / self.csv_path.name
+            if not template_path.is_file():
+                raise FileNotFoundError(f"No user profile at {self.csv_path} and no shared "
+                                        f"template at {template_path}.")
+            self.csv_path.parent.mkdir(parents=True, exist_ok=True)
+            copyfile(template_path, self.csv_path)
+            print(f"[LINKAM] Created user step profile from {template_path.name}: {self.csv_path}")
+
+        df = pd.read_csv(self.csv_path, comment='#', skipinitialspace=True)
         required_cols = set(self.step_columns)
         if not required_cols.issubset(df.columns):
             raise ValueError(f"CSV must contain columns: {required_cols}")
         self.step_config = df
+        path_text = str(self.csv_path)
+        print(f"[LINKAM] Loaded {len(df)} step(s) from: "
+              f"\033]8;;{self.csv_path.as_uri()}\033\\{path_text}\033]8;;\033\\")
+        self.check_step_timing()
         return df
+
+    def check_step_timing(self, start_temperature: float = None, verbosity: int = 1) -> list:
+        """
+        Warn (does not raise) about any loaded step whose duration(s) is too
+        short to complete both the temperature ramp and (for tensile) the
+        motor move - run_single_step() runs them concurrently and just stops
+        at duration(s) regardless, so a step that's too short gets cut off
+        before reaching its target temperature/position.
+
+        Each step's ramp is chained from the previous step's target
+        temperature, not assumed to start from room temperature every time -
+        for step 0, the stage's current live temperature is used unless
+        start_temperature overrides it (the stage may already be hot/cold
+        from a previous run).
+
+        Returns the list of stepNo with insufficient duration.
+        """
+        if not hasattr(self, 'step_config'):
+            raise ValueError("No step configuration loaded. Use load_step_config first.")
+
+        has_motion = {'position(um)', 'velocity(um/s)'}.issubset(self.step_config.columns)
+        prev_temp = start_temperature if start_temperature is not None else self.temperature()
+
+        short_steps = []
+        for _, step in self.step_config.iterrows():
+            stepNo = int(step['stepNo'])
+            target_temp = float(step['temperature(C)'])
+            ramp_rate = float(step['ramp_rate(C/min)'])
+            duration = float(step['duration(s)'])
+
+            ramp_time = abs(target_temp - prev_temp) / (ramp_rate / 60.0) if ramp_rate else 0.0
+
+            move_time = 0.0
+            if has_motion:
+                velocity = float(step['velocity(um/s)'])
+                move_time = abs(float(step['position(um)'])) / velocity if velocity else 0.0
+
+            # Temperature ramp and motion run concurrently in run_single_step(),
+            # so the step needs at least as long as whichever takes longer.
+            required = max(ramp_time, move_time)
+
+            if required > duration:
+                short_steps.append(stepNo)
+                if verbosity >= 1:
+                    slow_part = "temperature ramp" if ramp_time >= move_time else "motor move"
+                    print(f"[LINKAM] step {stepNo}: needs ~{required:.1f}s ({slow_part}) but "
+                          f"duration(s)={duration:.1f}s - will be cut short by ~{required - duration:.1f}s.")
+            elif verbosity >= 2:
+                print(f"[LINKAM] step {stepNo}: needs ~{required:.1f}s, duration(s)={duration:.1f}s "
+                      f"({duration - required:.1f}s margin/hold).")
+
+            prev_temp = target_temp  # next step's ramp starts from here, not room temperature
+
+        return short_steps
 
     def save_step_config(self) -> None:
         """Save step configuration DataFrame to CSV."""
@@ -250,9 +348,9 @@ class LinkamThermal(Device):
         You can use positional arguments (in order of self.step_columns, skipping 'stepNo')
         or keyword arguments (column=value).
         Example:
-            add_step(25, 10, 15)  # temperature, rate, wait_time
-            add_step(25, 10, 15, -1000, 100)  # for tensile: temperature, rate, wait_time, position, velocity
-            add_step(temperature=25, rate=10, wait_time=15)
+            add_step(25, 10, 15)  # temperature(C), ramp_rate(C/min), duration(s)
+            # for tensile: temperature(C), ramp_rate(C/min), duration(s), position(um), velocity(um/s)
+            add_step(25, 10, 15, -1000, 100)
         """
         if not hasattr(self, 'step_config'):
             self.step_config = pd.DataFrame(columns=self.step_columns)
@@ -357,11 +455,11 @@ class LinkamThermal(Device):
         if stop_evt and stop_evt.is_set():
             return
         step = self.step_config.iloc[stepNo]
-        print(f"[LINKAM] Running step {stepNo}: Temperature={step['temperature']}, Rate={step['rate']}, Wait={step['wait_time']}s")
+        print(f"[LINKAM] Running step {stepNo}: Temperature={step['temperature(C)']}C, RampRate={step['ramp_rate(C/min)']}C/min, Duration={step['duration(s)']}s")
         self.on()
-        self.setTemperature(step['temperature'])
-        self.setTemperatureRate(step['rate'])
-        wait_s = float(step.get('wait_time', 0))
+        self.setTemperature(step['temperature(C)'])
+        self.setTemperatureRate(step['ramp_rate(C/min)'])
+        wait_s = float(step.get('duration(s)', 0))
         end = time.monotonic() + wait_s
         while time.monotonic() < end:
             if stop_evt and stop_evt.is_set():
@@ -422,7 +520,7 @@ class LinkamThermal(Device):
         """
         if output_file is None:
             now = datetime.now().strftime("%Y%m%d-%H-%M-%S")
-            output_file = self.folder + f'linkam_archiver_record_{now}.csv'
+            output_file = self.folder / f'linkam_archiver_record_{now}.csv'
         pv_list = self.pv_list
         if stop_event is None:
             stop_event = asyncio.Event()
@@ -481,13 +579,38 @@ class LinkamThermal(Device):
 #     return caget('XF:11BM-ES:{LINKAM}:TST_MOTOR_POS')
 
 
-class LinkamTensile(LinkamThermal):
+class TensileStatus(enum.IntFlag):
+    """
+    Decoded bits of TST_STATUS (LinkamTensile.status_code_Tensile). This is
+    the single translation layer for that raw int - everything else (status
+    text, home(), etc.) should read these flags instead of re-deriving
+    `code & <bit>` from scratch.
+    """
+    ZERO_LIMIT = 1
+    REF_LIMIT = 2
+    MOVE_DONE = 4
+    DIRECTION = 8
+    FORCE = 16
+    CYCLE_MODE = 32
+    CYCLE_DIR_OPEN = 64
+
+
+class LinkamTensile(LinkamThermal, PositionerBase):
     """
     Device interface and experiment orchestration for the Linkam tensile stage.
 
     Supports step programming with temperature, ramp rate, wait time, position, velocity,
     and automated data archiving of all relevant PVs (temperature, force, position, velocity, etc).
+
+    Also a PositionerBase, so bps.mv(LTensile, target)/LTensile.set(target) work
+    natively (with bluesky's standard timeout/pause/progress-bar support). mov()/
+    movr() are the blocking, progress-bar-showing user entrypoints built on that;
+    _mov()/_movr() are the lower-level, no-wait/no-progress-bar building blocks
+    used internally (e.g. by run_single_step()'s async step runner).
     """
+
+    egu = 'um'  # required by PositionerBase; used in progress bar / status displays
+    precision = 3  # decimal digits for position display (progress bar, repr, etc.)
 
     # cmd = Cpt(EpicsSignal, 'STARTHEAT')
     # temperature_setpoint = Cpt(EpicsSignal, 'SETPOINT:SET')
@@ -529,8 +652,11 @@ class LinkamTensile(LinkamThermal):
     J2J_distance = Cpt(EpicsSignal, "TST_JAW_TO_JAW_SIZE")
     J2J_distance_setpoint = Cpt(EpicsSignal, "TST_JAW_TO_JAW_SIZE:SET")
 
-    # PVs to archive for tensile experiments
-    step_columns = ['stepNo', 'temperature', 'rate', 'wait_time', 'position', 'velocity']
+    # PVs to archive for tensile experiments. Units are in the column names:
+    # temperature(C), ramp_rate(C/min) [temperature ramp, not stretch speed], duration(s)
+    # [step time budget], position(um) [relative move via movr()],
+    # velocity(um/s) [stretch/motor speed, not temperature ramp].
+    step_columns = ['stepNo', 'temperature(C)', 'ramp_rate(C/min)', 'duration(s)', 'position(um)', 'velocity(um/s)']
     pv_list = [
         'XF:11BM-ES:{LINKAM}:TEMP',          # Temperature
         'XF:11BM-ES:{LINKAM}:RAMPRATE',      # Ramp rate
@@ -545,51 +671,142 @@ class LinkamTensile(LinkamThermal):
     def __init__(self, prefix, name=None, **kwargs):
         super().__init__(prefix, name=name, **kwargs)
         self.step_setters = {
-            'temperature': self.setTemperature,
-            'rate': self.setTemperatureRate,
-            'position': self.setPosition,
-            'velocity': self.setVelocity,
+            'temperature(C)': self.setTemperature,
+            'ramp_rate(C/min)': self.setTemperatureRate,
+            'position(um)': self.setPosition,
+            'velocity(um/s)': self.setVelocity,
         }
+        # Feed POS updates into PositionerBase's readback subscription, which
+        # MoveStatus subscribes to (event_type=SUB_READBACK) to drive progress
+        # bars. Without this, MoveStatus's watchers never get real data.
+        self.POS.subscribe(self._position_changed)
+
+    def _position_changed(self, value=None, **kwargs):
+        """Forward POS updates to PositionerBase - feeds MoveStatus/progress bars."""
+        if value is not None:
+            self._set_position(value)
+
+    def trace_tensile_status(self):
+        """Print raw and decoded tensile-status updates; return its subscription token."""
+        def _trace(value=None, old_value=None, timestamp=None, **kwargs):
+            bits = TensileStatus(int(value))
+            print(f"[LINKAM-TENSILE] TST_STATUS {old_value!r} -> {int(bits)} "
+                  f"(zero={bool(bits & TensileStatus.ZERO_LIMIT)}, "
+                  f"ref={bool(bits & TensileStatus.REF_LIMIT)}, "
+                  f"done={bool(bits & TensileStatus.MOVE_DONE)}, "
+                  f"position={self.POS.get():.3f}um)")
+
+        return self.status_code_Tensile.subscribe(_trace, run=True)
+
+    def stop_tracing_tensile_status(self, token):
+        """Stop a status trace started by trace_tensile_status()."""
+        self.status_code_Tensile.unsubscribe(token)
 
     def statusTensile(self, verbosity=3):
         text = f"\nCurrent temperature = {self.temperature():.1f}, setpoint = {self.temperature_setpoint.get():.1f}\n\n"
 
         # mode_value = self.
         text += f"\nCurrent mode = {self.getMode(verbosity=5):}\n\n"
-        code = int(self.status_code_Tensile.get())
+        bits = self.status_bits
 
-        if code & 1:  # Zero Limit
-            text += "Zero Limit        : yes" + "\n"
-        else:
-            text += "Zero Limit        : no\n"
-        if code & 2:  # ref Limit
-            text += "ref Limit         : yes" + "\n"
-        else:
-            text += "ref Limit         : no\n"
-        if code & 4:  # Move Done
-            text += "Move Done         : on" + "\n"
-        else:
-            text += "Move Done         : off\n"
-        if code & 8:  # Direction
-            text += "Direction         : on" + "\n"
-        else:
-            text += "Direction         : off\n"
-        if code & 16:  # Force
-            text += "Force             : yes" + "\n"
-        else:
-            text += "Force             : no\n"
-        if code & 32:  # Cycle mode
-            text += "Cycle mode        : yes" + "\n"
-        else:
-            text += "Cycle mode        : no\n"
-        if code & 64:  # Cycle dir open
-            text += "Cycle dir open    : yes" + "\n"
-        else:
-            text += "Cycle dir open    : no\n"
+        text += f"Zero Limit        : {'yes' if bits & TensileStatus.ZERO_LIMIT else 'no'}\n"
+        text += f"ref Limit         : {'yes' if bits & TensileStatus.REF_LIMIT else 'no'}\n"
+        text += f"Move Done         : {'on' if bits & TensileStatus.MOVE_DONE else 'off'}\n"
+        text += f"Direction         : {'on' if bits & TensileStatus.DIRECTION else 'off'}\n"
+        text += f"Force             : {'yes' if bits & TensileStatus.FORCE else 'no'}\n"
+        text += f"Cycle mode        : {'yes' if bits & TensileStatus.CYCLE_MODE else 'no'}\n"
+        text += f"Cycle dir open    : {'yes' if bits & TensileStatus.CYCLE_DIR_OPEN else 'no'}\n"
 
         if verbosity >= 3:
             print(text)
-        return code
+        return int(bits)
+
+    @property
+    def status_bits(self) -> TensileStatus:
+        """Decoded TST_STATUS bits - see TensileStatus for what each bit means."""
+        return TensileStatus(int(self.status_code_Tensile.get()))
+
+    @property
+    def zero_limit(self) -> bool:
+        """True if the hardware zero (low) limit switch is tripped."""
+        return bool(self.status_bits & TensileStatus.ZERO_LIMIT)
+
+    @property
+    def ref_limit(self) -> bool:
+        """True if the hardware reference (high) limit switch is tripped."""
+        return bool(self.status_bits & TensileStatus.REF_LIMIT)
+
+    @property
+    def move_done(self) -> bool:
+        """True if the motor reports move-complete."""
+        return bool(self.status_bits & TensileStatus.MOVE_DONE)
+
+    @property
+    def position(self) -> float:
+        """Current position (um) - required by PositionerBase (used by bps.mv()/progress bars)."""
+        return self.POS.get()
+
+    def _require_velocity(self, velocity: float = None) -> None:
+        """
+        Raise ValueError if no velocity is configured (the move would silently
+        never start), or if a negative velocity was given. velocity is a speed
+        magnitude - direction is set separately from the move distance's sign
+        (see setDirection()) - and Linkam does not accept a negative velocity.
+        """
+        if velocity is not None and velocity < 0:
+            raise ValueError(f"[LINKAM-TENSILE] velocity must be > 0 (got {velocity}); "
+                              "direction is set automatically from the move distance's sign.")
+        if velocity is None and self.velocity.get() == 0:
+            raise ValueError("[LINKAM-TENSILE] velocity is 0 and no velocity was given; "
+                              "the stage would never move.")
+
+    def move(self, position: float, wait: bool = True, timeout: float = None,
+             velocity: float = None, settle_time: float = 0.3, **kwargs) -> MoveStatus:
+        """
+        Move to an absolute position (um). Returns a MoveStatus - ophyd's
+        standard positioner status, with its own timeout and .watch() support
+        for progress bars. This is what bps.mv(LTensile, target)/set() use;
+        mov()/movr() are blocking, progress-bar-showing wrappers around this.
+        """
+        target = float(position)
+        relative_pos = target - self.POS.get()
+        status = MoveStatus(self, target, timeout=timeout, settle_time=settle_time)
+
+        if relative_pos == 0:
+            status.set_finished()
+            return status
+
+        self._require_velocity(velocity)
+        command_time = time.monotonic()
+        self._movr(relative_pos, velocity=velocity, verbosity=0)
+
+        # TST_STATUS lags the real motor state by ~1s (observed on hardware),
+        # so a "done" reading right after commanding the move is not yet
+        # trustworthy - it may just be the leftover pre-move value. Only
+        # accept it once we've actually seen the busy state this move caused,
+        # or once that lag has elapsed (a move too fast for the status word
+        # to ever report busy).
+        STATUS_LAG = 1.5  # seconds; margin over the observed ~1s IOC status delay
+
+        def _poll_done():
+            seen_busy = False
+            while not status.done:
+                if not self.move_done:
+                    seen_busy = True
+                elif seen_busy or (time.monotonic() - command_time) > STATUS_LAG:
+                    status.set_finished()
+                    return
+                time.sleep(0.05)
+
+        threading.Thread(target=_poll_done, daemon=True).start()
+
+        if wait:
+            status.wait()
+        return status
+
+    def set(self, position: float, *, timeout: float = None, moved_cb=None, wait: bool = False, **kwargs) -> MoveStatus:
+        """PositionerBase's required set() - delegates to move()."""
+        return self.move(position, wait=wait, timeout=timeout, **kwargs)
 
     def start(self):
         return self.run_cmd.put(1)
@@ -597,7 +814,7 @@ class LinkamTensile(LinkamThermal):
     def _start(self):
         yield from bps.mv(self.run_cmd, 1)
 
-    def stop(self):
+    def stop(self, *, success: bool = False):
         return self.run_cmd.put(0)
 
     def _stop(self):
@@ -681,9 +898,10 @@ class LinkamTensile(LinkamThermal):
 
         return value
 
-    def mov(self, position, velocity=None, verbosity=3):
-        # move to the absolute position
-
+    def _mov(self, position, velocity=None, verbosity=3):
+        # move to the absolute position - internal, no wait-for-done/no progress bar.
+        # Fire-and-forget: used by move() and by other features (e.g. the async
+        # step runner in run_single_step()) that manage their own timing.
         if position < 0:
             return "[LINKAM-TENSILE] Error: position < 0. "
 
@@ -699,6 +917,7 @@ class LinkamTensile(LinkamThermal):
         else:
             return self.POS.get()
 
+        self._require_velocity(velocity)
         self.distance_setpoint.put(abs(relative_pos))
 
         # set velocity
@@ -719,8 +938,10 @@ class LinkamTensile(LinkamThermal):
             print(self.POS.get())
         return self.POS.get()
 
-    def movr(self, distance, velocity=None, verbosity=3):
-        # move to the relative position
+    def _movr(self, distance, velocity=None, verbosity=3):
+        # move to the relative position - internal, no wait-for-done/no progress bar.
+        # Fire-and-forget: used by move() and by other features (e.g. the async
+        # step runner in run_single_step()) that manage their own timing.
         relative_pos = distance
         if relative_pos > 0:  # open
             self.setDirection(0)
@@ -728,6 +949,8 @@ class LinkamTensile(LinkamThermal):
             self.setDirection(1)
         else:
             return self.POS.get()
+
+        self._require_velocity(velocity)
         self.distance_setpoint.put(abs(relative_pos))
 
         if velocity == None and self.velocity.get() == 0:
@@ -747,47 +970,119 @@ class LinkamTensile(LinkamThermal):
             print(self.POS.get())
         return self.POS.get()
 
-    def _mov(self, position, velocity=None, verbosity=3):
-        # move to the absolute position
-        # YF version
+    def mov(self, position: float, velocity: float = None, timeout: float = None,
+            settle_time: float = 0.3) -> float:
+        """
+        User entrypoint: move to an absolute position (um) via the RunEngine
+        (RE(bps.mv(self, position))) - the native bluesky mechanism, so this
+        gets RE.waiting_hook's progress bar plus pause/resume/interrupt
+        support, same as moving a normal EpicsMotor. No need to type RE(...)
+        yourself. For the fire-and-forget building block with no wait/progress
+        bar (e.g. used by the async step runner), see _mov().
+        """
+        RE(bps.mv(self, position, velocity=velocity, timeout=timeout, settle_time=settle_time))
+        return self.POS.get()
 
-        if position < 0:
-            return "Error: position < 0. "
+    def movr(self, distance: float, velocity: float = None, timeout: float = None,
+             settle_time: float = 0.3) -> float:
+        """User entrypoint: relative move (um) via the RunEngine - see mov().
+        For the fire-and-forget building block with no wait/progress bar, see _movr()."""
+        return self.mov(self.POS.get() + distance, velocity=velocity,
+                         timeout=timeout, settle_time=settle_time)
 
-        # set distance
-        relative_pos = position - self.POS.get()
-        if verbosity >= 3:
-            print("[LINKAM-TENSILE] The motor will move {:1f} mm.".format(relative_pos))
+    def home_blocking(self, step_size: float = -200, velocity: float = None,
+                      max_steps: int = 500, move_timeout: float = 30.0,
+                      verbosity: int = 3) -> float:
+        """
+        Home the tensile stage (plain blocking call, bypasses the RunEngine).
 
-        if relative_pos > 0:
-            yield from bps.mv(self.direction_setpoint, 0)
-            # self.setDirection(0)
-        elif relative_pos < 0:
-            yield from bps.mv(self.direction_setpoint, 1)
-        else:
-            return self.POS.get()
+        Procedure: move to absolute position 0, then repeatedly step by
+        step_size (um) until the hardware zero limit switch trips
+        (zero_limit; see statusTensile()). The position readback is only
+        accurate to ~um and is not used to decide "at zero" - only the zero
+        limit switch is authoritative. Each step is driven by move(), which
+        handles the wait/timeout itself (see move()).
 
-        yield from bps.mv(self.distance_setpoint, abs(relative_pos))
+        Kept alongside home_plan()/home() for quick manual testing outside a
+        plan; RE has no visibility into this call (no pause/resume/interrupt).
 
-        # set velocity
-        if velocity == None and self.velocity.get() == 0:
-            return print("[LINKAM-TENSILE] The velocity is 0. No movement.")
-            # self.velocity_setpoint.put(self.velocity.get())
-        elif velocity == None and self.velocity.get() != 0:
-            pass
-        else:
-            yield from bps.mv(self.velocity_setpoint, velocity)
-            # self.velocity_setpoint.put(velocity)
+        Raises ValueError if no velocity is configured (the move would
+        silently never start), and RuntimeError if a step doesn't finish
+        within move_timeout, or its own RuntimeError if max_steps is
+        exhausted first.
+        """
+        self._require_velocity(velocity)
 
-        yield from bps.mv(self.run_cmd, 1)
-        # self.run_cmd.put(1)
         if verbosity >= 1:
-            while int(LTensile.status_code_Tensile.get()) & 4:
+            print("[LINKAM-TENSILE] Homing: moving to position 0.")
+        self.move(0, velocity=velocity, timeout=move_timeout)  # move(), not mov(): no per-step progress bar
+
+        for i in range(max_steps):
+            # 1. Already home? Only the zero limit switch is authoritative.
+            if self.zero_limit:
+                if verbosity >= 1:
+                    print(f"[LINKAM-TENSILE] Homing complete after {i} step(s): zero limit reached "
+                          f"(position={self.POS.get():.3f}um).")
                 return self.POS.get()
 
-        if verbosity >= 3:
-            print(self.POS.get())
-        return self.POS.get()
+            # 2. Not home yet: take one more step (move() waits for it to finish).
+            if verbosity >= 3:
+                print(f"[LINKAM-TENSILE] Homing step {i}: position={self.POS.get():.3f}um, "
+                      f"moving {step_size}um")
+            self.move(self.POS.get() + step_size, velocity=velocity, timeout=move_timeout)
+
+        # 3. Ran out of steps without ever satisfying the stopping condition.
+        raise RuntimeError(f"[LINKAM-TENSILE] Homing aborted: zero limit not reached after "
+                            f"{max_steps} steps (position={self.POS.get():.3f}um).")
+
+    def home_plan(self, step_size: float = -200, velocity: float = None,
+                  max_steps: int = 500, move_timeout: float = 30.0,
+                  verbosity: int = 3):
+        """
+        Bluesky plan version of home_blocking(): same procedure and stopping
+        condition (only the zero_limit switch, not the position readback -
+        see home_blocking()), but drives the moves via bps.abs_set(self, ...)
+        - since LinkamTensile is a PositionerBase, this gives the RunEngine
+        native pause/resume/interrupt/progress-bar support, no custom
+        wait-for-move plan stub needed. Run via RE(LTensile.home_plan()), or
+        just call LTensile.home().
+        """
+        self._require_velocity(velocity)
+
+        if verbosity >= 1:
+            print("[LINKAM-TENSILE] Homing: moving to position 0.")
+        yield from bps.abs_set(self, 0, wait=True, timeout=move_timeout, velocity=velocity)
+
+        for i in range(max_steps):
+            # 1. Already home? Only the zero limit switch is authoritative.
+            if self.zero_limit:
+                if verbosity >= 1:
+                    print(f"[LINKAM-TENSILE] Homing complete after {i} step(s): zero limit reached "
+                          f"(position={self.POS.get():.3f}um).")
+                return self.POS.get()
+
+            # 2. Not home yet: take one more step (abs_set(wait=True) waits for it to finish).
+            if verbosity >= 3:
+                print(f"[LINKAM-TENSILE] Homing step {i}: position={self.POS.get():.3f}um, "
+                      f"moving {step_size}um")
+            yield from bps.abs_set(self, self.POS.get() + step_size, wait=True,
+                                    timeout=move_timeout, velocity=velocity)
+
+        # 3. Ran out of steps without ever satisfying the stopping condition.
+        raise RuntimeError(f"[LINKAM-TENSILE] Homing aborted: zero limit not reached after "
+                            f"{max_steps} steps (position={self.POS.get():.3f}um).")
+
+    def home(self, step_size: float = -2000, velocity: float = 2000,
+             max_steps: int = 50, move_timeout: float = 30.0,
+             verbosity: int = 3):
+        """
+        User entrypoint: runs home_plan() through the RunEngine (RE) for you,
+        e.g. just call LTensile.home() - no need to type RE(...) yourself.
+        For a version that bypasses the RunEngine entirely, see home_blocking().
+        """
+        return RE(self.home_plan(step_size=step_size, velocity=velocity,
+                                  max_steps=max_steps,
+                                  move_timeout=move_timeout, verbosity=verbosity))
 
     def setDirection(self, direction, wait_time=0.1, verbosity=3):
         # 0 = Open, 1 = close
@@ -888,16 +1183,18 @@ class LinkamTensile(LinkamThermal):
             ", ".join(f"{col}={step[col]}" for col in self.step_columns if col != 'stepNo'))
 
         # Set all relevant PVs
-        self.setTemperature(step['temperature'])
-        self.setTemperatureRate(step['rate'])
+        self.setTemperature(step['temperature(C)'])
+        self.setTemperatureRate(step['ramp_rate(C/min)'])
 
         self.on()
 
-        # Use movr to trigger tensile movement
-        self.movr(step['position'], step['velocity'])
+        # Use _movr to trigger tensile movement without waiting for it to finish
+        # (position(um) is a relative move, velocity(um/s) is speed) - this step's
+        # duration(s) budget covers the move, see the CSV header comments.
+        self._movr(step['position(um)'], step['velocity(um/s)'])
 
         try:
-            wait_s = float(step.get('wait_time', 0))
+            wait_s = float(step.get('duration(s)', 0))
             end = time.monotonic() + wait_s
             while time.monotonic() < end:
                 if stop_evt and stop_evt.is_set():

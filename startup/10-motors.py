@@ -15,7 +15,118 @@ beamline_stage = "default"  #for AB, please also change Smpl2-Y from 3... to -5
 # beamline_stage = 'open_MAXS'
 # beamline_stage = 'BigHuber'
 
-print('Beamline_stage = {}'.format(beamline_stage))
+"""
+Example for swithing between beamline modes:
+
+``` bash
+export CMS_BEAMLINE_MODE=open_MAXS
+bsui
+```
+"""
+
+BEAMLINE_MODE_CONFIGS = {
+    "default": {
+        "sample_motors": {
+            "smx": "XF:11BMB-ES{Chm:Smpl-Ax:X}Mtr",
+            "smy": "XF:11BMB-ES{Chm:Smpl-Ax:Y}Mtr",
+            "sth": "XF:11BMB-ES{Chm:Smpl-Ax:theta}Mtr",
+            "schi": "XF:11BMB-ES{Chm:Smpl-Ax:chi}Mtr",
+        },
+        "pilatus800_on": True,
+        "pilatus800_2_on": False,
+        "pilatus300_on": False,
+        "beam_defining_slit": "s4",
+        "enable_s4d": False,
+    },
+    "open_MAXS": {
+        "sample_motors": {
+            "smx": "XF:11BMB-ES{Chm:Smpl2-Ax:X}Mtr",
+            "smy": "XF:11BMB-ES{Chm:Smpl2-Ax:Y}Mtr",
+            "sth": "XF:11BMB-ES{SM:2-Ax:theta}Mtr",
+            "schi": "XF:11BMB-ES{SM:2-Ax:chi}Mtr",
+        },
+        "pilatus800_on": False,
+        "pilatus800_2_on": True,
+        "pilatus300_on": False,
+        "beam_defining_slit": "s2",
+        "enable_s4d": True,
+    },
+    "BigHuber": {
+        "sample_motors": {
+            "smx": "XF:11BMB-ES{Chm:Smpl2-Ax:Y}Mtr",
+            "smy": "XF:11BMB-ES{Chm:Smpl3-Ax:Y}Mtr",
+            "sth": "XF:11BMB-ES{Chm:Smpl3-Ax:theta}Mtr",
+            "schi": "XF:11BMB-ES{Chm:Smpl3-Ax:chi}Mtr",
+            "sprayy": "XF:11BMB-ES{Chm:Smpl2-Ax:X}Mtr",
+        },
+        "pilatus800_on": False,
+        "pilatus800_2_on": True,
+        "pilatus300_on": False,
+        "beam_defining_slit": "s2",
+        "enable_s4d": True,
+    },
+    "Temp": {
+        "sample_motors": {
+            "smx": "XF:11BMB-ES{Chm:Smpl-Ax:X}Mtr",
+            "smy": "XF:11BMB-ES{Chm:Smpl-Ax:Y}Mtr",
+            "sth": "XF:11BMB-ES{Chm:Smpl-Ax:theta}Mtr",
+            "schi": "XF:11BMB-ES{Chm:Smpl-Ax:chi}Mtr",
+        },
+        "pilatus800_on": False,
+        "pilatus800_2_on": False,
+        "pilatus300_on": True,
+        "beam_defining_slit": "s4",
+        "enable_s4d": True,
+    },
+    ## swap schi and sth, 2026-10-20, HZ
+    "Temp2": { 
+        "sample_motors": {
+            "smx": "XF:11BMB-ES{Chm:Smpl-Ax:X}Mtr",
+            "smy": "XF:11BMB-ES{Chm:Smpl-Ax:Y}Mtr",
+            "schi": "XF:11BMB-ES{Chm:Smpl-Ax:theta}Mtr",
+            "sth": "XF:11BMB-ES{Chm:Smpl-Ax:chi}Mtr",
+        },
+        "pilatus800_on": False,
+        "pilatus800_2_on": False,
+        "pilatus300_on": True,
+        "beam_defining_slit": "s4",
+        "enable_s4d": True,
+    },
+
+    # Test mode that enable all motors and detectors, use with caution!
+    "Test": {
+        "sample_motors": {
+            "smx": "XF:11BMB-ES{Chm:Smpl-Ax:X}Mtr",
+            "smy": "XF:11BMB-ES{Chm:Smpl-Ax:Y}Mtr",
+            "sth": "XF:11BMB-ES{Chm:Smpl-Ax:theta}Mtr",
+            "schi": "XF:11BMB-ES{Chm:Smpl-Ax:chi}Mtr",
+            "smx2": "XF:11BMB-ES{Chm:Smpl2-Ax:X}Mtr",
+            "smy2": "XF:11BMB-ES{Chm:Smpl2-Ax:Y}Mtr",
+            "sth2": "XF:11BMB-ES{SM:2-Ax:theta}Mtr",
+            "schi2": "XF:11BMB-ES{SM:2-Ax:chi}Mtr",
+            "smy3": "XF:11BMB-ES{Chm:Smpl3-Ax:Y}Mtr",
+            "sth3": "XF:11BMB-ES{Chm:Smpl3-Ax:theta}Mtr",
+            "schi3": "XF:11BMB-ES{Chm:Smpl3-Ax:chi}Mtr",
+        },
+        "pilatus800_on": True,
+        "pilatus800_2_on": True,
+        "pilatus300_on": True,
+        "beam_defining_slit": "s4",
+        "enable_s4d": True,
+    },
+}
+BEAMLINE_MODES = tuple(BEAMLINE_MODE_CONFIGS)
+
+beamline_mode = os.environ.get("CMS_BEAMLINE_MODE", "default")
+
+if beamline_mode not in BEAMLINE_MODES:
+    raise ValueError(
+        "Invalid beamline mode {!r}. Use one of: {}".format(beamline_mode, ", ".join(BEAMLINE_MODES))
+    )
+
+beamline_mode_config = BEAMLINE_MODE_CONFIGS[beamline_mode]
+
+print('Beamline mode = {}'.format(beamline_mode))
 
 # slits = Slits('XF:11BMA-OP{Slt:0', name='slits')
 
@@ -67,7 +178,7 @@ class Configurable:
     
     def goto(self, name):
         """
-        Load a saved position and move all motors there.
+        Load a saved position and move all motors there through the RunEngine.
         
         Args:
             name: Position name to load and move to
@@ -75,17 +186,27 @@ class Configurable:
         Usage:
             s4.goto('open')  # Load and move s4 to 'open' position
         """
+        RE(self._goto(name))
+
+    def _goto(self, name):
+        """Bluesky plan implementation of goto()."""
         positions_dict = self._load_config()
         entries = positions_dict.get(name)
         if entries and isinstance(entries, list):
             target_positions = entries[-1]  # Get latest entry
             print(f"Moving '{self.name}' to position '{name}'...")
+            yield from bps.sleep(2)  # Small delay before moving motors, wait for user confirmation
             for motor_name in self._config_motors:
-                if (hasattr(self, motor_name) and 
-                    motor_name in target_positions):
-                    motor = getattr(self, motor_name)
-                    target_value = target_positions[motor_name]
-                    motor.move(target_value)
+                if not hasattr(self, motor_name):
+                    print(f"  {motor_name}: not available")
+                    continue
+                if motor_name not in target_positions:
+                    print(f"  {motor_name}: no saved value; unchanged")
+                    continue
+                motor = getattr(self, motor_name)
+                target_value = target_positions[motor_name]
+                print(f"  {motor_name}: {motor.position} -> {target_value}")
+                yield from bps.mv(motor, target_value)
             self.show_position()
         else:
             print(f"No saved position found for '{name}'.")
@@ -296,13 +417,14 @@ s0 = Blades("XF:11BMA-OP{Slt:0", name="s0")
 # s1 = MotorCenterAndGap("XF:11BMB-OP{Slt:1", name="s1")
 
 # Option 2: Custom config file for each slit (recommended for separate tracking)
-s1 = MotorCenterAndGap("XF:11BMB-OP{Slt:1", name="s1", config_file='cfg/s1_config.cfg')
-s2 = MotorCenterAndGap("XF:11BMB-OP{Slt:2", name="s2", config_file='cfg/s2_config.cfg')
-s3 = MotorCenterAndGap("XF:11BMB-OP{Slt:3", name="s3", config_file='cfg/s3_config.cfg')
-s4 = MotorCenterAndGap("XF:11BMB-OP{Slt:4", name="s4", config_file='cfg/s4_config.cfg')
-s5 = MotorCenterAndGap("XF:11BMB-OP{Slt:5", name="s5", config_file='cfg/s5_config.cfg')
+s1 = MotorCenterAndGap("XF:11BMB-OP{Slt:1", name="s1", config_file=bluesky_path('cfg/s1_config.cfg'))
+s2 = MotorCenterAndGap("XF:11BMB-OP{Slt:2", name="s2", config_file=bluesky_path('cfg/s2_config.cfg'))
+s3 = MotorCenterAndGap("XF:11BMB-OP{Slt:3", name="s3", config_file=bluesky_path('cfg/s3_config.cfg'))
+s4 = MotorCenterAndGap("XF:11BMB-OP{Slt:4", name="s4", config_file=bluesky_path('cfg/s4_config.cfg'))
+s5 = MotorCenterAndGap("XF:11BMB-OP{Slt:5", name="s5", config_file=bluesky_path('cfg/s5_config.cfg'))
 
-# Practical s4 examples (useful copy-paste snippets):
+'''
+# Example Usages:
 # The file cfg/s4_config.cfg contains named sets: 'trans_inair', 'GI_inair',
 # 'trans_vacuum', and 'GI_vacuum'. Use these names with get/goto.
 # Show current positions:
@@ -317,9 +439,10 @@ s5 = MotorCenterAndGap("XF:11BMB-OP{Slt:5", name="s5", config_file='cfg/s5_confi
 # Single-axis moves (no RE required):
 #     s4.mov('xc', -1.48)    # absolute
 #     s4.movr('yg', 0.05)    # relative
+'''
 
 # Option 3: Share one config file for all slits (if you prefer centralized tracking)
-# slits_config_file = 'cfg/slits_config.cfg'
+# slits_config_file = bluesky_path('cfg/slits_config.cfg')
 # s1 = MotorCenterAndGap("XF:11BMB-OP{Slt:1", name="s1", config_file=slits_config_file)
 # s2 = MotorCenterAndGap("XF:11BMB-OP{Slt:2", name="s2", config_file=slits_config_file)
 # s3 = MotorCenterAndGap("XF:11BMB-OP{Slt:3", name="s3", config_file=slits_config_file)
@@ -399,7 +522,7 @@ fpr = EpicsMotor("XF:11BM-ES{Mdrive-Ax:2}Mtr", name="fpr")
  
 
 # goniometer
-smy2 = EpicsMotor("XF:11BMB-ES{Chm:Smpl-Ax:Y2}Mtr", name="smy2")
+# smy2 = EpicsMotor("XF:11BMB-ES{Chm:Smpl-Ax:Y2}Mtr", name="smy2")
 sphi = EpicsMotor("XF:11BMB-ES{Chm:Smpl-Ax:phi}Mtr", name="sphi")
 
 
@@ -448,10 +571,25 @@ armr = EpicsMotor("XF:11BMB-ES{ATT:1-Ax:X}Mtr", name="armr")
 
 
 ## stages for detectors
-## currently not working. The new pilatus800k is sitting on a stage with manual movement
-# DETx = EpicsMotor('XF:11BMB-ES{Det:Stg-Ax:X}Mtr', name='DETx')
-# DETy =  EpicsMotor('XF:11BMB-ES{Det:Stg-Ax:Y}Mtr', name='DETy')
-# WAXSx = EpicsMotor('XF:11BMB-ES{Det:WAXS-Ax:X}Mtr', name='WAXSx')
+
+class DetectorMotors(Device, Configurable):
+    "Detector motors that control the X and Y positions"
+    x = Cpt(EpicsMotor, "-Ax:X}Mtr")
+    y = Cpt(EpicsMotor, "-Ax:Y}Mtr")
+    
+    _config_motors = ['x', 'y']
+    
+    def __init__(self, *args, config_file=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        if config_file is not None:
+            self._config_file = Path(config_file)
+        self._positions = self._load_config()
+
+WAXS = DetectorMotors("XF:11BMB-ES{Det:WAXS", name="WAXS", config_file=bluesky_path('cfg/waxs_config.cfg'))
+SAXS = DetectorMotors("XF:11BMB-ES{Det:SAXS", name="SAXS", config_file=bluesky_path('cfg/saxs_config.cfg'))
+MAXS = DetectorMotors("XF:11BMB-ES{Det:MAXS", name="MAXS", config_file=bluesky_path('cfg/maxs_config.cfg'))
+
+
 WAXSx = EpicsMotor("XF:11BMB-ES{Det:WAXS-Ax:X}Mtr", name="WAXSx")
 WAXSy = EpicsMotor("XF:11BMB-ES{Det:WAXS-Ax:Y}Mtr", name="WAXSy")
 WAXSz = EpicsMotor("XF:11BMB-ES{Det:WAXS-Ax:Z}Mtr", name="WAXSz")
